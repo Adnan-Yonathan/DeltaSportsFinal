@@ -1,4 +1,8 @@
-import { normalCDF, oddsToImpliedProbability } from '@/lib/utils/statistics'
+import {
+  normalCDF,
+  oddsToImpliedProbability,
+  probabilityToAmericanOdds,
+} from '@/lib/utils/statistics'
 import type { BettingSplits, LineMovement, SharpSignal } from './edge-detection'
 
 type MarketKey = 'spread' | 'total' | 'moneyline'
@@ -8,10 +12,13 @@ type ProjectionTier = 'pro' | 'p4' | 'mid' | 'hbcu'
 export type SharpProjectionMarket = {
   side: string
   probability: number
-  confidenceInterval: { low: number; high: number }
+  confidenceInterval?: { low: number; high: number }
   edgePercent: number
   breakEven: number
   factors: string[]
+  sharpFairOdds?: number
+  limitPressureScore?: number
+  limitPressureLabel?: string
 }
 
 export type SharpProjections = {
@@ -27,6 +34,7 @@ type SpreadMarketInput = {
   bestOdds?: number
   bestHomeOdds?: number
   bestAwayOdds?: number
+  bookQuotes?: Record<string, unknown>
 }
 
 type TotalMarketInput = {
@@ -34,6 +42,7 @@ type TotalMarketInput = {
   targetLine: number
   bestOdds?: number
   bestUnderOdds?: number
+  bookQuotes?: Record<string, unknown>
 }
 
 type MoneylineMarketInput = {
@@ -44,6 +53,7 @@ type MoneylineMarketInput = {
   model?: {
     homeProbability?: number
   }
+  bookQuotes?: Record<string, unknown>
 }
 
 type WhaleAlertInput = {
@@ -491,292 +501,361 @@ const computeSignalBias = ({
   return { bias, score, factors }
 }
 
+const SHARP_BOOK_KEYS = ['pinnacle', 'circa', 'novig', 'prophetx'] as const
+
+const SHARP_BOOK_WEIGHTS: Record<string, number> = {
+  pinnacle: 1.25,
+  circa: 1.2,
+  novig: 1.0,
+  prophetx: 0.9,
+}
+
+const SPORT_LIMIT_IMPACT: Record<string, number> = {
+  basketball_nba: 0.08,
+  basketball_ncaab: 0.07,
+  americanfootball_nfl: 0.09,
+  americanfootball_ncaaf: 0.08,
+  baseball_mlb: 0.06,
+  icehockey_nhl: 0.06,
+}
+
+const parseOptionalFinite = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+const parseOptionalPositive = (value: unknown): number | null => {
+  const parsed = parseOptionalFinite(value)
+  if (parsed == null || parsed <= 0) return null
+  return parsed
+}
+
+const resolveTwoWayNoVigProbability = (
+  forOdds: number | null,
+  againstOdds: number | null
+) => {
+  if (forOdds == null || againstOdds == null) return null
+  const forProb = oddsToImpliedProbability(forOdds)
+  const againstProb = oddsToImpliedProbability(againstOdds)
+  const total = forProb + againstProb
+  if (!Number.isFinite(total) || total <= 0) return null
+  return clampProbability(forProb / total)
+}
+
+const resolveBookWeight = (bookKey: string, forLimit: number | null, againstLimit: number | null) => {
+  const base = SHARP_BOOK_WEIGHTS[bookKey] ?? 1
+  const maxLimit = Math.max(forLimit ?? 0, againstLimit ?? 0)
+  if (!maxLimit) return base
+  const liquidityBoost = Math.min(0.5, Math.log10(maxLimit + 1) * 0.12)
+  return base + liquidityBoost
+}
+
+const resolvePressureLabel = (score: number) => {
+  if (score >= 0.05) return 'Strong contraction'
+  if (score >= 0.015) return 'Moderate contraction'
+  if (score <= -0.05) return 'Strong expansion'
+  if (score <= -0.015) return 'Moderate expansion'
+  return 'Balanced limits'
+}
+
+const resolveLineMovementPressure = ({
+  lineMovements,
+  market,
+  forSide,
+  homeTeam,
+  awayTeam,
+}: {
+  lineMovements?: LineMovement[]
+  market: MarketKey
+  forSide: MarketSide
+  homeTeam: string
+  awayTeam: string
+}) => {
+  let pressure = 0
+  const factors: string[] = []
+  for (const move of lineMovements ?? []) {
+    if (move.market !== market || move.direction === 'neutral') continue
+    const aligned = resolveSideAlignment(move.side, homeTeam, awayTeam)
+    if (!aligned) continue
+    const toward = move.direction === 'toward' ? 1 : -1
+    const sideDirection = aligned === forSide ? 1 : -1
+    const magnitude = Math.min(2.5, Math.abs(move.movement))
+    const signalWeight = move.isSharp ? 0.008 : move.isSignificant ? 0.005 : 0.003
+    pressure += toward * sideDirection * magnitude * signalWeight
+    if (Math.abs(magnitude) >= 0.5) {
+      factors.push(`${move.market} move ${move.openingLine} -> ${move.currentLine}`)
+    }
+  }
+  return { pressure, factors }
+}
+
+type PairedQuote = {
+  bookKey: string
+  forOdds: number | null
+  againstOdds: number | null
+  forLimit: number | null
+  againstLimit: number | null
+}
+
+const resolveMarketFromPairs = ({
+  pairs,
+  fallbackForOdds,
+  fallbackAgainstOdds,
+  sportKey,
+  market,
+  forSide,
+  sideLabel,
+  homeTeam,
+  awayTeam,
+  lineMovements,
+}: {
+  pairs: PairedQuote[]
+  fallbackForOdds?: number
+  fallbackAgainstOdds?: number
+  sportKey: string
+  market: MarketKey
+  forSide: MarketSide
+  sideLabel: string
+  homeTeam: string
+  awayTeam: string
+  lineMovements?: LineMovement[]
+}) => {
+  let weightedProb = 0
+  let totalWeight = 0
+  let limitPressure = 0
+  const factors: string[] = []
+  const limitImpact = SPORT_LIMIT_IMPACT[sportKey] ?? 0.07
+
+  for (const pair of pairs) {
+    const noVig = resolveTwoWayNoVigProbability(pair.forOdds, pair.againstOdds)
+    if (noVig == null) continue
+    const weight = resolveBookWeight(pair.bookKey, pair.forLimit, pair.againstLimit)
+    weightedProb += noVig * weight
+    totalWeight += weight
+
+    const forLimit = pair.forLimit
+    const againstLimit = pair.againstLimit
+    if (forLimit != null && againstLimit != null && forLimit + againstLimit > 0) {
+      const imbalance = (forLimit - againstLimit) / (forLimit + againstLimit)
+      const pressure = -imbalance * limitImpact * weight
+      limitPressure += pressure
+      if (Math.abs(imbalance) >= 0.08) {
+        factors.push(
+          `${pair.bookKey}: ${forLimit < againstLimit ? 'contracting' : 'expanding'} vs opposite side`
+        )
+      }
+    }
+  }
+
+  const fallbackProb = resolveTwoWayNoVigProbability(
+    parseOptionalFinite(fallbackForOdds ?? null),
+    parseOptionalFinite(fallbackAgainstOdds ?? null)
+  )
+  const baseProbability =
+    totalWeight > 0 ? clampProbability(weightedProb / totalWeight) : fallbackProb ?? 0.5
+
+  const lineMovementSignal = resolveLineMovementPressure({
+    lineMovements,
+    market,
+    forSide,
+    homeTeam,
+    awayTeam,
+  })
+  const finalPressure = limitPressure + lineMovementSignal.pressure
+  const probability = clampProbability(baseProbability + finalPressure)
+  const breakEven = resolveBreakEven(fallbackForOdds ?? null)
+  const edgePercent = Math.max(0, (probability - breakEven) * 100)
+  const pressureLabel = resolvePressureLabel(finalPressure)
+
+  const mergedFactors = [...factors, ...lineMovementSignal.factors]
+  if (!mergedFactors.length) {
+    mergedFactors.push(`${pressureLabel} on ${sideLabel}`)
+  }
+
+  return {
+    probability,
+    breakEven,
+    edgePercent,
+    sharpFairOdds: probabilityToAmericanOdds(probability),
+    limitPressureScore: finalPressure,
+    limitPressureLabel: pressureLabel,
+    factors: mergedFactors,
+  }
+}
+
+const resolveSpreadPairs = (spread?: SpreadMarketInput): PairedQuote[] => {
+  const bookQuotes = (spread as { bookQuotes?: Record<string, unknown> } | undefined)?.bookQuotes
+  if (!bookQuotes) return []
+  const pairs: PairedQuote[] = []
+  for (const key of SHARP_BOOK_KEYS) {
+    const quote = (bookQuotes[key] ?? null) as Record<string, unknown> | null
+    if (!quote) continue
+    pairs.push({
+      bookKey: key,
+      forOdds: parseOptionalFinite(quote.homeOdds),
+      againstOdds: parseOptionalFinite(quote.awayOdds),
+      forLimit: parseOptionalPositive(quote.homeLimit),
+      againstLimit: parseOptionalPositive(quote.awayLimit),
+    })
+  }
+  return pairs
+}
+
+const resolveTotalPairs = (total?: TotalMarketInput): PairedQuote[] => {
+  const bookQuotes = (total as { bookQuotes?: Record<string, unknown> } | undefined)?.bookQuotes
+  if (!bookQuotes) return []
+  const pairs: PairedQuote[] = []
+  for (const key of SHARP_BOOK_KEYS) {
+    const quote = (bookQuotes[key] ?? null) as Record<string, unknown> | null
+    if (!quote) continue
+    pairs.push({
+      bookKey: key,
+      forOdds: parseOptionalFinite(quote.overOdds),
+      againstOdds: parseOptionalFinite(quote.underOdds),
+      forLimit: parseOptionalPositive(quote.overLimit),
+      againstLimit: parseOptionalPositive(quote.underLimit),
+    })
+  }
+  return pairs
+}
+
+const resolveMoneylinePairs = (moneyline?: MoneylineMarketInput): PairedQuote[] => {
+  const bookQuotes = (moneyline as { bookQuotes?: Record<string, unknown> } | undefined)?.bookQuotes
+  if (!bookQuotes) return []
+  const pairs: PairedQuote[] = []
+  for (const key of SHARP_BOOK_KEYS) {
+    const quote = (bookQuotes[key] ?? null) as Record<string, unknown> | null
+    if (!quote) continue
+    pairs.push({
+      bookKey: key,
+      forOdds: parseOptionalFinite(quote.homeOdds),
+      againstOdds: parseOptionalFinite(quote.awayOdds),
+      forLimit: parseOptionalPositive(quote.homeLimit),
+      againstLimit: parseOptionalPositive(quote.awayLimit),
+    })
+  }
+  return pairs
+}
+
 export const buildSharpProjections = (input: SharpProjectionInput): SharpProjections => {
-  const config = resolveSportConfig(input.sportKey)
   const tier = resolveTier(input.sportKey, input.homeTeam, input.awayTeam)
-  const tierMultiplier = TIER_MULTIPLIERS[tier] ?? TIER_MULTIPLIERS.pro
   const projections: SharpProjections = { tier }
-  const hasSignals =
-    (input.sharpSignals?.length ?? 0) +
-      (input.lineMovements?.length ?? 0) +
-      (input.splits ? 1 : 0) +
-      (input.whaleAlerts?.length ?? 0) >
-    0
 
-  if (
-    input.spread &&
-    Number.isFinite(input.spread.marketLine) &&
-    Number.isFinite(input.spread.targetLine)
-  ) {
-    const marketLine = input.spread.marketLine
-    const modelLine = input.spread.targetLine
-    const marginStdDev = resolveStdDev({
+  if (input.spread) {
+    const homeResult = resolveMarketFromPairs({
+      pairs: resolveSpreadPairs(input.spread),
+      fallbackForOdds: input.spread.bestHomeOdds ?? input.spread.bestOdds,
+      fallbackAgainstOdds: input.spread.bestAwayOdds ?? input.spread.bestOdds,
       sportKey: input.sportKey,
-      tier,
-      base: config.marginStdDev,
-      hasSignals,
-    })
-    let baseHomeProb = computeCoverProbability(marketLine, modelLine, marginStdDev)
-    const marketBlend = resolveMarketBlend({
-      sportKey: input.sportKey,
-      tier,
-      hasSignals,
-    })
-    const hasMarketOdds =
-      Number.isFinite(input.spread.bestHomeOdds) ||
-      Number.isFinite(input.spread.bestAwayOdds) ||
-      Number.isFinite(input.spread.bestOdds)
-    if (marketBlend > 0 && hasMarketOdds) {
-      const baseAwayProb = 1 - baseHomeProb
-      const marketHome = resolveBreakEven(
-        input.spread.bestHomeOdds ?? input.spread.bestOdds
-      )
-      const marketAway = resolveBreakEven(
-        input.spread.bestAwayOdds ?? input.spread.bestOdds
-      )
-      const blendedHome = baseHomeProb * (1 - marketBlend) + marketHome * marketBlend
-      const blendedAway = baseAwayProb * (1 - marketBlend) + marketAway * marketBlend
-      const total = blendedHome + blendedAway
-      baseHomeProb = total > 0 ? blendedHome / total : blendedHome
-    }
-    const homeBias = computeSignalBias({
       market: 'spread',
-      pickSide: 'home',
+      forSide: 'home',
+      sideLabel: input.homeTeam,
       homeTeam: input.homeTeam,
       awayTeam: input.awayTeam,
-      sharpSignals: input.sharpSignals,
       lineMovements: input.lineMovements,
-      splits: input.splits,
-      whaleAlerts: input.whaleAlerts,
-      config,
-      tierMultiplier,
     })
-    const awayBias = computeSignalBias({
-      market: 'spread',
-      pickSide: 'away',
-      homeTeam: input.homeTeam,
-      awayTeam: input.awayTeam,
-      sharpSignals: input.sharpSignals,
-      lineMovements: input.lineMovements,
-      splits: input.splits,
-      whaleAlerts: input.whaleAlerts,
-      config,
-      tierMultiplier,
-    })
-
-    const rawHome = clampProbability(baseHomeProb + homeBias.bias)
-    const rawAway = clampProbability(1 - baseHomeProb + awayBias.bias)
-    const totalProb = rawHome + rawAway
-    let homeProb = totalProb > 0 ? rawHome / totalProb : rawHome
-    let awayProb = totalProb > 0 ? rawAway / totalProb : rawAway
-    const lineMovePenalty = resolveLineMovePenalty(input.lineMovements, 'spread')
-    if (lineMovePenalty > 0) {
-      const adjustedHome = applyConfidencePenalty(homeProb, lineMovePenalty)
-      const adjustedAway = applyConfidencePenalty(awayProb, lineMovePenalty)
-      const adjustedTotal = adjustedHome + adjustedAway
-      homeProb = adjustedTotal > 0 ? adjustedHome / adjustedTotal : adjustedHome
-      awayProb = adjustedTotal > 0 ? adjustedAway / adjustedTotal : adjustedAway
-    }
-    const pickSide: MarketSide = homeProb >= awayProb ? 'home' : 'away'
-    const probability = pickSide === 'home' ? homeProb : awayProb
-    const signalBias = pickSide === 'home' ? homeBias : awayBias
-
-    const pickLabel = pickSide === 'home' ? input.homeTeam : input.awayTeam
-    const breakEven = resolveBreakEven(
-      pickSide === 'home'
-        ? input.spread.bestHomeOdds ?? input.spread.bestOdds
-        : input.spread.bestAwayOdds ?? input.spread.bestOdds
-    )
-    const edgePercent = Math.max(0, (probability - breakEven) * 100)
-    const confidenceInterval = computeConfidenceInterval(
-      probability,
-      signalBias.score,
-      config.baseCiWidth,
-      tierMultiplier.ci,
-      lineMovePenalty
-    )
+    const homeProb = clampProbability(homeResult.probability)
+    const awayProb = clampProbability(1 - homeProb)
+    const pickHome = homeProb >= awayProb
+    const probability = pickHome ? homeProb : awayProb
+    const breakEven = pickHome
+      ? resolveBreakEven(input.spread.bestHomeOdds ?? input.spread.bestOdds)
+      : resolveBreakEven(input.spread.bestAwayOdds ?? input.spread.bestOdds)
     projections.spread = {
-      side: pickLabel,
+      side: pickHome ? input.homeTeam : input.awayTeam,
       probability,
-      confidenceInterval,
-      edgePercent,
+      confidenceInterval: {
+        low: clampProbability(probability - 0.015),
+        high: clampProbability(probability + 0.015),
+      },
+      edgePercent: Math.max(0, (probability - breakEven) * 100),
       breakEven,
-      factors: signalBias.factors,
+      factors: homeResult.factors,
+      sharpFairOdds: probabilityToAmericanOdds(probability),
+      limitPressureScore: pickHome
+        ? homeResult.limitPressureScore
+        : -(homeResult.limitPressureScore ?? 0),
+      limitPressureLabel: homeResult.limitPressureLabel,
     }
   }
 
-  if (
-    input.total &&
-    Number.isFinite(input.total.marketLine) &&
-    Number.isFinite(input.total.targetLine)
-  ) {
-    const marketLine = input.total.marketLine
-    const modelLine = input.total.targetLine
-    const totalStdDev = resolveStdDev({
+  if (input.total) {
+    const overResult = resolveMarketFromPairs({
+      pairs: resolveTotalPairs(input.total),
+      fallbackForOdds: input.total.bestOdds,
+      fallbackAgainstOdds: input.total.bestUnderOdds ?? input.total.bestOdds,
       sportKey: input.sportKey,
-      tier,
-      base: config.totalStdDev,
-      hasSignals,
-    })
-    let baseOverProb = computeOverProbability(marketLine, modelLine, totalStdDev)
-    const marketBlend = resolveMarketBlend({
-      sportKey: input.sportKey,
-      tier,
-      hasSignals,
-    })
-    const hasMarketOdds =
-      Number.isFinite(input.total.bestOdds) ||
-      Number.isFinite(input.total.bestUnderOdds)
-    if (marketBlend > 0 && hasMarketOdds) {
-      const baseUnderProb = 1 - baseOverProb
-      const marketOver = resolveBreakEven(input.total.bestOdds)
-      const marketUnder = resolveBreakEven(input.total.bestUnderOdds ?? input.total.bestOdds)
-      const blendedOver = baseOverProb * (1 - marketBlend) + marketOver * marketBlend
-      const blendedUnder = baseUnderProb * (1 - marketBlend) + marketUnder * marketBlend
-      const total = blendedOver + blendedUnder
-      baseOverProb = total > 0 ? blendedOver / total : blendedOver
-    }
-    const overBias = computeSignalBias({
       market: 'total',
-      pickSide: 'over',
+      forSide: 'over',
+      sideLabel: 'Over',
       homeTeam: input.homeTeam,
       awayTeam: input.awayTeam,
-      sharpSignals: input.sharpSignals,
       lineMovements: input.lineMovements,
-      splits: input.splits,
-      whaleAlerts: input.whaleAlerts,
-      config,
-      tierMultiplier,
     })
-    const underBias = computeSignalBias({
-      market: 'total',
-      pickSide: 'under',
-      homeTeam: input.homeTeam,
-      awayTeam: input.awayTeam,
-      sharpSignals: input.sharpSignals,
-      lineMovements: input.lineMovements,
-      splits: input.splits,
-      whaleAlerts: input.whaleAlerts,
-      config,
-      tierMultiplier,
-    })
-
-    const rawOver = clampProbability(baseOverProb + overBias.bias)
-    const rawUnder = clampProbability(1 - baseOverProb + underBias.bias)
-    const totalProb = rawOver + rawUnder
-    const overProb = totalProb > 0 ? rawOver / totalProb : rawOver
-    const underProb = totalProb > 0 ? rawUnder / totalProb : rawUnder
-
-    const pickSide: MarketSide = overProb >= underProb ? 'over' : 'under'
-    const probability = pickSide === 'over' ? overProb : underProb
-    const signalBias = pickSide === 'over' ? overBias : underBias
-
-    const pickLabel = pickSide === 'over' ? 'Over' : 'Under'
-    const odds = pickSide === 'over' ? input.total.bestOdds : input.total.bestUnderOdds
-    const breakEven = resolveBreakEven(odds)
-    const edgePercent = Math.max(0, (probability - breakEven) * 100)
-    const confidenceInterval = computeConfidenceInterval(
-      probability,
-      signalBias.score,
-      config.baseCiWidth,
-      tierMultiplier.ci
-    )
+    const overProb = clampProbability(overResult.probability)
+    const underProb = clampProbability(1 - overProb)
+    const pickOver = overProb >= underProb
+    const probability = pickOver ? overProb : underProb
+    const breakEven = pickOver
+      ? resolveBreakEven(input.total.bestOdds)
+      : resolveBreakEven(input.total.bestUnderOdds ?? input.total.bestOdds)
     projections.total = {
-      side: pickLabel,
+      side: pickOver ? 'Over' : 'Under',
       probability,
-      confidenceInterval,
-      edgePercent,
+      confidenceInterval: {
+        low: clampProbability(probability - 0.015),
+        high: clampProbability(probability + 0.015),
+      },
+      edgePercent: Math.max(0, (probability - breakEven) * 100),
       breakEven,
-      factors: signalBias.factors,
+      factors: overResult.factors,
+      sharpFairOdds: probabilityToAmericanOdds(probability),
+      limitPressureScore: pickOver
+        ? overResult.limitPressureScore
+        : -(overResult.limitPressureScore ?? 0),
+      limitPressureLabel: overResult.limitPressureLabel,
     }
   }
 
-  const moneyline = input.moneyline
-  if (moneyline) {
-    let baseHomeProb = moneyline.model?.homeProbability
-    if (!Number.isFinite(baseHomeProb) && input.spread?.targetLine != null) {
-      const marginStdDev = resolveStdDev({
-        sportKey: input.sportKey,
-        tier,
-        base: config.marginStdDev,
-        hasSignals,
-      })
-      baseHomeProb = normalCDF(
-        -(input.spread.targetLine as number) / marginStdDev
-      )
-    }
-    if (Number.isFinite(baseHomeProb)) {
-      const marketBlend = resolveMarketBlend({
-        sportKey: input.sportKey,
-        tier,
-        hasSignals,
-      })
-      const hasMarketOdds =
-        Number.isFinite(moneyline.sportsbook?.homeOdds) ||
-        Number.isFinite(moneyline.sportsbook?.awayOdds)
-      if (marketBlend > 0 && hasMarketOdds) {
-        const baseAwayProb = 1 - (baseHomeProb as number)
-        const marketHome = resolveBreakEven(moneyline.sportsbook?.homeOdds)
-        const marketAway = resolveBreakEven(moneyline.sportsbook?.awayOdds)
-        const blendedHome =
-          (baseHomeProb as number) * (1 - marketBlend) + marketHome * marketBlend
-        const blendedAway = baseAwayProb * (1 - marketBlend) + marketAway * marketBlend
-        const total = blendedHome + blendedAway
-        baseHomeProb = total > 0 ? blendedHome / total : blendedHome
-      }
-      const homeSignal = computeSignalBias({
-        market: 'moneyline',
-        pickSide: 'home',
-        homeTeam: input.homeTeam,
-        awayTeam: input.awayTeam,
-        sharpSignals: input.sharpSignals,
-        lineMovements: input.lineMovements,
-        splits: input.splits,
-        whaleAlerts: input.whaleAlerts,
-        config,
-        tierMultiplier,
-      })
-      const awaySignal = computeSignalBias({
-        market: 'moneyline',
-        pickSide: 'away',
-        homeTeam: input.homeTeam,
-        awayTeam: input.awayTeam,
-        sharpSignals: input.sharpSignals,
-        lineMovements: input.lineMovements,
-        splits: input.splits,
-        whaleAlerts: input.whaleAlerts,
-        config,
-        tierMultiplier,
-      })
-      const rawHome = clampProbability((baseHomeProb as number) + homeSignal.bias)
-      const rawAway = clampProbability(1 - (baseHomeProb as number) + awaySignal.bias)
-      const totalProb = rawHome + rawAway
-      const homeProb = totalProb > 0 ? rawHome / totalProb : rawHome
-      const awayProb = totalProb > 0 ? rawAway / totalProb : rawAway
-
-      const pickHome = homeProb >= awayProb
-      const pickSide = pickHome ? 'home' : 'away'
-      const pickLabel = pickHome ? input.homeTeam : input.awayTeam
-      const probability = pickHome ? homeProb : awayProb
-      const breakEven = resolveBreakEven(
-        pickHome ? moneyline.sportsbook?.homeOdds : moneyline.sportsbook?.awayOdds
-      )
-      const edgePercent = Math.max(0, (probability - breakEven) * 100)
-      const pickSignal = pickHome ? homeSignal : awaySignal
-      const confidenceInterval = computeConfidenceInterval(
-        probability,
-        pickSignal.score,
-        config.baseCiWidth,
-        tierMultiplier.ci
-      )
-      projections.moneyline = {
-        side: pickLabel,
-        probability,
-        confidenceInterval,
-        edgePercent,
-        breakEven,
-        factors: pickSignal.factors,
-      }
+  if (input.moneyline) {
+    const homeResult = resolveMarketFromPairs({
+      pairs: resolveMoneylinePairs(input.moneyline),
+      fallbackForOdds: input.moneyline.sportsbook?.homeOdds,
+      fallbackAgainstOdds: input.moneyline.sportsbook?.awayOdds,
+      sportKey: input.sportKey,
+      market: 'moneyline',
+      forSide: 'home',
+      sideLabel: input.homeTeam,
+      homeTeam: input.homeTeam,
+      awayTeam: input.awayTeam,
+      lineMovements: input.lineMovements,
+    })
+    const homeProb = clampProbability(homeResult.probability)
+    const awayProb = clampProbability(1 - homeProb)
+    const pickHome = homeProb >= awayProb
+    const probability = pickHome ? homeProb : awayProb
+    const breakEven = pickHome
+      ? resolveBreakEven(input.moneyline.sportsbook?.homeOdds)
+      : resolveBreakEven(input.moneyline.sportsbook?.awayOdds)
+    projections.moneyline = {
+      side: pickHome ? input.homeTeam : input.awayTeam,
+      probability,
+      confidenceInterval: {
+        low: clampProbability(probability - 0.015),
+        high: clampProbability(probability + 0.015),
+      },
+      edgePercent: Math.max(0, (probability - breakEven) * 100),
+      breakEven,
+      factors: homeResult.factors,
+      sharpFairOdds: probabilityToAmericanOdds(probability),
+      limitPressureScore: pickHome
+        ? homeResult.limitPressureScore
+        : -(homeResult.limitPressureScore ?? 0),
+      limitPressureLabel: homeResult.limitPressureLabel,
     }
   }
 

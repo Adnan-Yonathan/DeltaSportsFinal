@@ -265,6 +265,19 @@ export function MobileMoreSheet({
 
           <button
             type="button"
+            onClick={() => handleInternalNavigation('/odds-screen')}
+            className={cn(
+              'flex w-full items-center rounded-xl border px-3 py-2 text-left text-sm transition',
+              isRouteActive('/odds-screen')
+                ? 'border-emerald-300/45 bg-emerald-500/15 text-emerald-100'
+                : 'border-white/10 bg-black/40 text-white/85 hover:border-emerald-300/35 hover:bg-emerald-500/10 hover:text-emerald-100'
+            )}
+          >
+            Odds Screen
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleInternalNavigation('/blog')}
             className={cn(
               'flex w-full items-center rounded-xl border px-3 py-2 text-left text-sm transition',

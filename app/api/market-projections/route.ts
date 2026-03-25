@@ -63,7 +63,7 @@ const hasSharpProjectionData = (sharpProjections: any) => {
   )
 }
 
-const SHARP_QUOTE_BOOK_KEYS = ["pinnacle", "novig", "prophetx"] as const
+const SHARP_QUOTE_BOOK_KEYS = ["pinnacle", "circa", "novig", "prophetx"] as const
 
 const hasSharpSportsbookQuotes = (edges?: any[]) => {
   if (!Array.isArray(edges) || edges.length === 0) return false
@@ -78,6 +78,49 @@ const hasSharpSportsbookQuotes = (edges?: any[]) => {
         const quote = quotes?.[bookKey]
         return Boolean(quote && typeof quote === "object")
       })
+    )
+  })
+}
+
+const hasSharpLimitData = (edges?: any[]) => {
+  if (!Array.isArray(edges) || edges.length === 0) return false
+
+  const hasNumericLimit = (quote: any) =>
+    quote &&
+    typeof quote === "object" &&
+    Object.entries(quote).some(([key, value]) => {
+      if (!key.toLowerCase().includes("limit")) return false
+      return typeof value === "number" && Number.isFinite(value)
+    })
+
+  const hasProjectionPressure = (edge: any) => {
+    const projections = [
+      edge?.sharpProjections?.spread,
+      edge?.sharpProjections?.total,
+      edge?.sharpProjections?.moneyline,
+    ]
+    return projections.some((projection) => {
+      if (!projection || typeof projection !== "object") return false
+      const label = projection?.limitPressureLabel
+      const score = projection?.limitPressureScore
+      return (
+        (typeof label === "string" && label.trim().length > 0) ||
+        (typeof score === "number" && Number.isFinite(score))
+      )
+    })
+  }
+
+  return edges.some((edge) => {
+    if (hasProjectionPressure(edge)) return true
+
+    const quoteGroups = [
+      edge?.spread?.bookQuotes,
+      edge?.total?.bookQuotes,
+      edge?.moneyline?.bookQuotes,
+    ].filter(Boolean)
+
+    return quoteGroups.some((group) =>
+      Object.values(group as Record<string, any>).some((quote) => hasNumericLimit(quote))
     )
   })
 }
@@ -194,6 +237,22 @@ const mergeWhaleAlerts = (
 
 const hydrateMissingSharpProjections = (edges: any[], sport: string): any[] => {
   if (!Array.isArray(edges) || edges.length === 0) return edges
+
+  const needsMarketBackfill = (hasMarket: boolean, marketProjection: any) => {
+    if (!hasMarket) return false
+    if (!marketProjection || typeof marketProjection !== "object") return true
+    const hasPressureLabel =
+      typeof marketProjection.limitPressureLabel === "string" &&
+      marketProjection.limitPressureLabel.trim().length > 0
+    const hasPressureScore =
+      typeof marketProjection.limitPressureScore === "number" &&
+      Number.isFinite(marketProjection.limitPressureScore)
+    const hasFairOdds =
+      typeof marketProjection.sharpFairOdds === "number" &&
+      Number.isFinite(marketProjection.sharpFairOdds)
+    return !hasPressureLabel || !hasPressureScore || !hasFairOdds
+  }
+
   return edges.map((edge) => {
     if (!edge || !edge.homeTeam || !edge.awayTeam) return edge
 
@@ -209,11 +268,20 @@ const hydrateMissingSharpProjections = (edges: any[], sport: string): any[] => {
         }
       | undefined
 
+    const needsSpreadBackfill = needsMarketBackfill(
+      hasSpreadMarket,
+      existing?.spread
+    )
+    const needsTotalBackfill = needsMarketBackfill(hasTotalMarket, existing?.total)
+    const needsMoneylineBackfill = needsMarketBackfill(
+      hasMoneylineMarket,
+      existing?.moneyline
+    )
     const needsBackfill =
       !existing ||
-      (hasSpreadMarket && !existing.spread) ||
-      (hasTotalMarket && !existing.total) ||
-      (hasMoneylineMarket && !existing.moneyline)
+      needsSpreadBackfill ||
+      needsTotalBackfill ||
+      needsMoneylineBackfill
 
     if (!needsBackfill) return edge
 
@@ -234,10 +302,16 @@ const hydrateMissingSharpProjections = (edges: any[], sport: string): any[] => {
       return {
         ...edge,
         sharpProjections: {
-          tier: existing?.tier ?? computed.tier,
-          spread: existing?.spread ?? computed.spread,
-          total: existing?.total ?? computed.total,
-          moneyline: existing?.moneyline ?? computed.moneyline,
+          tier: computed.tier ?? existing?.tier,
+          spread: needsSpreadBackfill
+            ? computed.spread ?? existing?.spread
+            : existing?.spread ?? computed.spread,
+          total: needsTotalBackfill
+            ? computed.total ?? existing?.total
+            : existing?.total ?? computed.total,
+          moneyline: needsMoneylineBackfill
+            ? computed.moneyline ?? existing?.moneyline
+            : existing?.moneyline ?? computed.moneyline,
         },
       }
     } catch {
@@ -457,12 +531,22 @@ export async function GET(request: Request) {
     const cachedCurrentSlateEdgeCount = countCurrentSlateEdges(cached?.edges)
     const hasCurrentSlateCache = cachedCurrentSlateEdgeCount > 0
     const hasSharpQuotesInCache = hasSharpSportsbookQuotes(cached?.edges)
+    const hasSharpLimitsInCache = hasSharpLimitData(cached?.edges)
+    const needsLimitBackfill =
+      hasCurrentSlateCache && hasSharpQuotesInCache && !hasSharpLimitsInCache
+    const allowRefreshOutsideWindow = needsLimitBackfill
 
     if (forceRefresh) {
-      if (!refreshWindowOpen) {
+      if (!refreshWindowOpen && !allowRefreshOutsideWindow) {
         return buildBlockedResponse(cached)
       }
-      if (cached && !forceBypass && hasCurrentSlateCache && hasSharpQuotesInCache) {
+      if (
+        cached &&
+        !forceBypass &&
+        hasCurrentSlateCache &&
+        hasSharpQuotesInCache &&
+        hasSharpLimitsInCache
+      ) {
         const updatedAtMs = Date.parse(cached.updatedAt ?? "")
         if (
           Number.isFinite(updatedAtMs) &&
@@ -510,7 +594,7 @@ export async function GET(request: Request) {
       })
     }
 
-    if (cached && hasCurrentSlateCache && hasSharpQuotesInCache) {
+    if (cached && hasCurrentSlateCache && hasSharpQuotesInCache && hasSharpLimitsInCache) {
       const updatedAtMs = Date.parse(cached.updatedAt ?? "")
       if (
         Number.isFinite(updatedAtMs) &&
@@ -528,11 +612,11 @@ export async function GET(request: Request) {
     }
 
     if (cached && hasCurrentSlateCache) {
-      if (!refreshWindowOpen) {
+      if (!refreshWindowOpen && !allowRefreshOutsideWindow) {
         return buildBlockedResponse(cached)
       }
 
-      if (!hasSharpQuotesInCache) {
+      if (!hasSharpQuotesInCache || !hasSharpLimitsInCache) {
         const refreshResult = await runRefreshWithLock({
           sport,
           limit,

@@ -11,6 +11,7 @@ export interface OddsOutcome {
   price: number // American odds
   point?: number // For spreads and totals
   probability?: number // Optional implied probability (0-1)
+  betLimit?: number // Optional bet limit from odds providers
 }
 
 export interface Bookmaker {

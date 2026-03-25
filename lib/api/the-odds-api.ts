@@ -237,6 +237,38 @@ function decimalToAmerican(decimal: number): number {
   return Math.round(-100 / (decimal - 1))
 }
 
+function parseOptionalPositiveNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+  return null
+}
+
+function resolveOutcomeBetLimit(outcome: TheOddsApiOutcome): number | undefined {
+  const outcomeAny = outcome as Record<string, unknown> & {
+    limits?: Record<string, unknown>
+  }
+  const candidates: unknown[] = [
+    outcome.bet_limit,
+    outcomeAny.betLimit,
+    outcomeAny.limit,
+    outcomeAny.max_limit,
+    outcomeAny.max,
+    outcomeAny.limits?.bet_limit,
+    outcomeAny.limits?.max,
+  ]
+
+  for (const candidate of candidates) {
+    const parsed = parseOptionalPositiveNumber(candidate)
+    if (parsed != null) return parsed
+  }
+  return undefined
+}
+
 /**
  * Map The Odds API response to our internal format
  */
@@ -253,6 +285,7 @@ function mapTheOddsApiEvent(event: TheOddsApiEvent): OddsGame {
         name: outcome.name,
         price: decimalToAmerican(outcome.price),
         point: outcome.point,
+        betLimit: resolveOutcomeBetLimit(outcome),
       }))
 
       return {

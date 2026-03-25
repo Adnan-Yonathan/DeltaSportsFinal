@@ -77,7 +77,16 @@ export type WhaleAlert = {
 
 type ProjectionBookKey =
   | 'fanduel'
+  | 'draftkings'
+  | 'betmgm'
+  | 'caesars'
+  | 'betrivers'
+  | 'hardrockbet'
+  | 'fanatics'
+  | 'espnbet'
+  | 'fliff'
   | 'pinnacle'
+  | 'circa'
   | 'novig'
   | 'prophetx'
   | 'polymarket'
@@ -88,8 +97,10 @@ type ProjectionQuoteSource = 'sbd' | 'odds_api' | 'polymarket_api' | 'kalshi_api
 type SpreadBookQuote = {
   homeLine?: number
   homeOdds?: number
+  homeLimit?: number
   awayLine?: number
   awayOdds?: number
+  awayLimit?: number
   source: ProjectionQuoteSource
   bookTitle?: string
 }
@@ -98,6 +109,8 @@ type TotalBookQuote = {
   line?: number
   overOdds?: number
   underOdds?: number
+  overLimit?: number
+  underLimit?: number
   source: ProjectionQuoteSource
   bookTitle?: string
 }
@@ -105,6 +118,8 @@ type TotalBookQuote = {
 type MoneylineBookQuote = {
   homeOdds?: number
   awayOdds?: number
+  homeLimit?: number
+  awayLimit?: number
   source: ProjectionQuoteSource
   bookTitle?: string
 }
@@ -290,7 +305,16 @@ const normalizeBookToken = (value?: string | null) =>
 
 const BOOK_TOKEN_ALIASES: Record<string, string[]> = {
   fanduel: ['fanduel', 'fd'],
+  draftkings: ['draftkings', 'dk'],
+  betmgm: ['betmgm', 'mgm'],
+  caesars: ['caesars', 'czr', 'williamhillus'],
+  betrivers: ['betrivers', 'rivers'],
+  hardrockbet: ['hardrockbet', 'hardrock'],
+  fanatics: ['fanatics', 'fanaticssportsbook', 'betfanatics'],
+  espnbet: ['espnbet', 'thescorebet'],
+  fliff: ['fliff'],
   pinnacle: ['pinnacle', 'pinnaclesports'],
+  circa: ['circa', 'circasports'],
   novig: ['novig', 'novigus'],
   prophetx: ['prophetx', 'prophet', 'prophetexchange'],
   polymarket: ['polymarket', 'poly'],
@@ -1506,14 +1530,23 @@ function getBestTotalByType(
 
 const PROJECTION_BOOK_KEYS: ProjectionBookKey[] = [
   'fanduel',
+  'draftkings',
+  'betmgm',
+  'caesars',
+  'betrivers',
+  'hardrockbet',
+  'fanatics',
+  'espnbet',
+  'fliff',
   'pinnacle',
+  'circa',
   'novig',
   'prophetx',
   'polymarket',
   'kalshi',
 ]
 
-const PROJECTION_SHARP_SPORTSBOOKS = ['pinnacle', 'novig', 'prophetx'] as const
+const PROJECTION_SHARP_SPORTSBOOKS = ['pinnacle', 'circa', 'novig', 'prophetx'] as const
 
 const filterOddsGamesForTeamAndBook = (
   games: OddsGame[],
@@ -1539,27 +1572,73 @@ const filterOddsGamesForTeamAndBook = (
     .filter((game) => (game.bookmakers?.length ?? 0) > 0)
 }
 
+const mergeOddsGamesByMatchup = (games: OddsGame[]) => {
+  const merged = new Map<string, OddsGame>()
+  for (const game of games) {
+    const key = buildMatchupKey(game.home_team, game.away_team)
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, { ...game, bookmakers: [...(game.bookmakers ?? [])] })
+      continue
+    }
+
+    const byBookKey = new Map(
+      (existing.bookmakers ?? []).map((book) => [normalizeBookToken(book.key || book.title), book])
+    )
+    for (const incoming of game.bookmakers ?? []) {
+      const incomingToken = normalizeBookToken(incoming.key || incoming.title)
+      if (!incomingToken) continue
+      if (!byBookKey.has(incomingToken)) {
+        byBookKey.set(incomingToken, incoming)
+      }
+    }
+    existing.bookmakers = Array.from(byBookKey.values())
+  }
+  return Array.from(merged.values())
+}
+
 const fetchProjectionSharpSportsbookOdds = async (
   sportKey: string,
   projectionMarkets: string[],
   projectionTeamFilter: string[]
 ) => {
-  try {
+  const fetchDirectOdds = async (bookmakers: readonly string[]) => {
     const directGames = await fetchTheOddsApiOdds(sportKey, {
       markets: 'h2h,spreads,totals',
       regions: 'us,us2,eu',
-      bookmakers: [...PROJECTION_SHARP_SPORTSBOOKS],
+      bookmakers: [...bookmakers],
+      includeBetLimits: true,
     })
     return filterOddsGamesForTeamAndBook(
       directGames,
       projectionTeamFilter,
-      PROJECTION_SHARP_SPORTSBOOKS
+      bookmakers
     )
+  }
+
+  try {
+    return await fetchDirectOdds(PROJECTION_SHARP_SPORTSBOOKS)
   } catch (directError) {
     console.warn(
       '[SLATE EDGE] Direct sharp sportsbook fetch failed; using odds-api-io fallback:',
       directError
     )
+
+    const perBookResults = await Promise.allSettled(
+      PROJECTION_SHARP_SPORTSBOOKS.map((book) => fetchDirectOdds([book]))
+    )
+    const directPerBookGames = perBookResults
+      .filter(
+        (
+          result
+        ): result is PromiseFulfilledResult<OddsGame[]> => result.status === 'fulfilled'
+      )
+      .flatMap((result) => result.value)
+
+    if (directPerBookGames.length > 0) {
+      return mergeOddsGamesByMatchup(directPerBookGames)
+    }
+
     const fallbackGames = await fetchOdds(sportKey, projectionMarkets, {
       revalidateSeconds: 1800,
       forceProvider: 'odds-api-io',
@@ -1654,8 +1733,10 @@ const resolveSpreadQuoteForBook = (
   return {
     homeLine: homeOutcome?.point,
     homeOdds: homeOutcome?.price,
+    homeLimit: homeOutcome?.betLimit,
     awayLine: awayOutcome?.point,
     awayOdds: awayOutcome?.price,
+    awayLimit: awayOutcome?.betLimit,
     source,
     bookTitle: book.title,
   }
@@ -1677,6 +1758,8 @@ const resolveTotalQuoteForBook = (
     line: over?.point ?? under?.point,
     overOdds: over?.price,
     underOdds: under?.price,
+    overLimit: over?.betLimit,
+    underLimit: under?.betLimit,
     source,
     bookTitle: book.title,
   }
@@ -1702,6 +1785,8 @@ const resolveMoneylineQuoteForBook = (
   return {
     homeOdds: home?.price,
     awayOdds: away?.price,
+    homeLimit: home?.betLimit,
+    awayLimit: away?.betLimit,
     source,
     bookTitle: book.title,
   }
@@ -1739,7 +1824,16 @@ const buildProjectionBookQuotes = (
     { game: OddsGame | null; source: ProjectionQuoteSource; token: string }
   > = {
     fanduel: { game, source: 'sbd', token: 'fanduel' },
+    draftkings: { game, source: 'sbd', token: 'draftkings' },
+    betmgm: { game, source: 'sbd', token: 'betmgm' },
+    caesars: { game, source: 'sbd', token: 'caesars' },
+    betrivers: { game, source: 'sbd', token: 'betrivers' },
+    hardrockbet: { game, source: 'sbd', token: 'hardrockbet' },
+    fanatics: { game, source: 'sbd', token: 'fanatics' },
+    espnbet: { game, source: 'sbd', token: 'espnbet' },
+    fliff: { game, source: 'sbd', token: 'fliff' },
     pinnacle: { game: sourceGames.oddsApi, source: 'odds_api', token: 'pinnacle' },
+    circa: { game: sourceGames.oddsApi, source: 'odds_api', token: 'circa' },
     novig: { game: sourceGames.oddsApi, source: 'odds_api', token: 'novig' },
     prophetx: { game: sourceGames.oddsApi, source: 'odds_api', token: 'prophetx' },
     polymarket: { game: sourceGames.polymarket, source: 'polymarket_api', token: 'polymarket' },

@@ -1,6 +1,6 @@
 'use client'
 
-import { HeroSection } from '@/components/ui/hero-1'
+import { CinematicLandingHero } from '@/components/ui/cinematic-landing-hero'
 import { ROICalculator } from '@/components/ui/roi-calculator'
 import { PricingSection } from '@/components/ui/pricing-section'
 import { PRICING_TIERS } from '@/components/pricing/pricing-tiers'
@@ -14,12 +14,11 @@ import { ImageAutoSlider } from '@/components/ui/image-auto-slider'
 export default function WelcomeLanding() {
   return (
     <div className="relative min-h-screen overflow-x-clip bg-black text-white">
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-1 sm:pt-2">
-        <ScrollFadeIn>
-          <HeroSection />
-        </ScrollFadeIn>
+      <CinematicLandingHero />
 
-        {/* Live ticker — directly under hero image */}
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-4 sm:pt-6">
+
+        {/* Live ticker directly under hero */}
         <ScrollFadeIn className="mt-4 sm:mt-6">
           <LiveTicker />
         </ScrollFadeIn>

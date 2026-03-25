@@ -292,6 +292,11 @@ const KALSHI_PROP_SERIES = [
   { ticker: 'KXNFLPASSYDS', propType: 'passing_yards', sportKey: 'americanfootball_nfl', sportLabel: 'NFL' },
   { ticker: 'KXNFLPASSTDS', propType: 'passing_tds', sportKey: 'americanfootball_nfl', sportLabel: 'NFL' },
   { ticker: 'KXNFLREC', propType: 'receptions', sportKey: 'americanfootball_nfl', sportLabel: 'NFL' },
+  { ticker: 'KXMLBHIT', propType: 'hits', sportKey: 'baseball_mlb', sportLabel: 'MLB' },
+  { ticker: 'KXMLBTB', propType: 'total_bases', sportKey: 'baseball_mlb', sportLabel: 'MLB' },
+  { ticker: 'KXMLBKS', propType: 'strikeouts', sportKey: 'baseball_mlb', sportLabel: 'MLB' },
+  { ticker: 'KXMLBHR', propType: 'home_runs', sportKey: 'baseball_mlb', sportLabel: 'MLB' },
+  { ticker: 'KXMLBHRR', propType: 'hits_runs_rbis', sportKey: 'baseball_mlb', sportLabel: 'MLB' },
 ]
 
 const KALSHI_TEAM_SERIES = [
@@ -357,6 +362,7 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
   baseball_mlb: [
     { key: 'strikeouts', patterns: ['strikeouts', 'ks', 'k', 'strikeout'] },
     { key: 'hits', patterns: ['hits', 'hit'] },
+    { key: 'hits_runs_rbis', patterns: ['hits + runs + rbis', 'hits+runs+rbis', 'hits runs rbis', 'hits + runs + rbi', 'hits+runs+rbi'] },
     { key: 'home_runs', patterns: ['home runs', 'home run', 'hr', 'homer'] },
     { key: 'rbis', patterns: ['rbis', 'rbi', 'runs batted in'] },
     { key: 'runs', patterns: ['runs scored', 'runs'] },
@@ -427,6 +433,7 @@ const EXCHANGE_PROP_MARKETS: Record<ExchangeSportKey, string[]> = {
     'player_home_runs',
     'player_rbis',
     'player_runs_scored',
+    'player_hits_runs_rbis',
     'player_strikeouts',
     'player_walks',
   ],
@@ -488,6 +495,7 @@ const MARKET_KEY_TO_PROP_TYPE: Record<string, string> = {
   player_home_runs: 'home_runs',
   player_rbis: 'rbis',
   player_runs_scored: 'runs',
+  player_hits_runs_rbis: 'hits_runs_rbis',
   player_strikeouts: 'strikeouts',
   player_walks: 'walks',
 }

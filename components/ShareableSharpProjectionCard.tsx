@@ -8,12 +8,13 @@ export type ShareableSharpProjection = {
   id: string
   sportLabel: string
   matchup: string
-  filterLabel: string
-  pickLabel: string
+  marketLabel: string
+  betLabel: string
   edgeLabel: string
-  oddsLabel: string
-  sharpSummary?: string
-  moveSummary?: string
+  sharpFairLabel: string
+  bookPriceLabel: string
+  selectedBookLabel: string
+  limitPressureLabel: string
 }
 
 const ShareableSharpProjectionCard = forwardRef<
@@ -84,7 +85,7 @@ const ShareableSharpProjectionCard = forwardRef<
               </div>
             </div>
 
-            {/* Projection + Edge row */}
+            {/* Bet + Edge row */}
             <div
               style={{
                 marginTop: 18,
@@ -121,32 +122,51 @@ const ShareableSharpProjectionCard = forwardRef<
               </div>
 
               {/* Pick label */}
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 18, letterSpacing: 1.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>
-                  {projection.filterLabel}
-                </div>
-                <div style={{ marginTop: 6, fontSize: 42, fontWeight: 700, lineHeight: 1.08, color: '#f8fafc' }}>
-                  {projection.pickLabel}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 18, letterSpacing: 1.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>
+                    {projection.marketLabel}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 42, fontWeight: 700, lineHeight: 1.08, color: '#f8fafc' }}>
+                    {projection.betLabel}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Stats grid: Best Odds + Line Movement */}
+            {/* Stats grid */}
             <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div style={{ borderRadius: 14, border: '1px solid rgba(132,204,22,0.45)', background: 'rgba(132,204,22,0.14)', padding: '12px 14px' }}>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(134,239,172,0.45)', background: 'rgba(16,185,129,0.16)', padding: '12px 14px' }}>
                 <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
-                  Best Odds
+                  Sharp Fair %
                 </div>
                 <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#bef264' }}>
-                  {projection.oddsLabel || 'n/a'}
+                  {projection.sharpFairLabel || 'n/a'}
                 </div>
               </div>
               <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 14px' }}>
                 <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
-                  Line Movement
+                  Book Price
+                </div>
+                <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.1 }}>
+                  {projection.bookPriceLabel || 'n/a'}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 15, color: 'rgba(255,255,255,0.65)' }}>
+                  {projection.selectedBookLabel}
+                </div>
+              </div>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 14px' }}>
+                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                  Limit Pressure
                 </div>
                 <div style={{ marginTop: 6, fontSize: 24, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2 }}>
-                  {projection.moveSummary || 'No movement yet'}
+                  {projection.limitPressureLabel || 'Balanced limits'}
+                </div>
+              </div>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 14px' }}>
+                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                  Edge vs Book
+                </div>
+                <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#86efac', lineHeight: 1.1 }}>
+                  {projection.edgeLabel}
                 </div>
               </div>
             </div>

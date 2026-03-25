@@ -16,6 +16,7 @@ import {
   Newspaper,
   Percent,
   Radar,
+  Rows3,
   Share2,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -47,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "whale-detector", label: "Whale Detector", href: "/sharp-detector", icon: Activity },
   { key: "polymarket-insider", label: "Insider Feed", href: "/polymarket-insider", icon: Eye },
   { key: "research", label: "Research", href: "/research/sharp-action", icon: FlaskConical },
+  { key: "odds-screen", label: "Odds Screen", href: "/odds-screen", icon: Rows3 },
   { key: "calculators", label: "Calculators", href: "/calculators", icon: Calculator },
   {
     key: "guides",

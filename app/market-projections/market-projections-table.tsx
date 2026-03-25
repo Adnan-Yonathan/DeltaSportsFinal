@@ -3,19 +3,12 @@
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import RadialOrbitalTimeline, { type TimelineItem } from "@/components/ui/radial-orbital-timeline"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
+import { INSIDER_ODDS_SOURCE_ORDER, getOddsSource } from "@/lib/config/odds-sources"
 import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
-import {
-  Activity,
-  CircleDollarSign,
-  Landmark,
-  ShieldCheck,
-  TrendingUp,
-  Waves,
-} from "lucide-react"
 
-type EdgeFilter = "spread" | "moneyline" | "total"
+type EdgeFilter = "all" | "spread" | "moneyline" | "total"
+type MarketFilter = Exclude<EdgeFilter, "all">
 type AccessTier = "free" | "sharp" | "syndicate" | null
 
 type MarketEdge = {
@@ -25,9 +18,12 @@ type MarketEdge = {
 type SharpProjectionMarket = {
   side: string
   probability: number
-  confidenceInterval: { low: number; high: number }
+  confidenceInterval?: { low: number; high: number }
   edgePercent: number
   breakEven: number
+  sharpFairOdds?: number
+  limitPressureScore?: number
+  limitPressureLabel?: string
 }
 
 type EdgeGame = {
@@ -138,19 +134,12 @@ type AccessConfig = {
   maxRows: Partial<Record<EdgeFilter, number>>
 }
 
-type BookFilterKey =
-  | "fanduel"
-  | "kalshi"
-  | "pinnacle"
-  | "polymarket"
-  | "prophetx"
-  | "novig"
+type BookFilterKey = (typeof INSIDER_ODDS_SOURCE_ORDER)[number]
 
 type BookOption = {
   key: BookFilterKey
   label: string
-  logoSrc: string
-  icon: TimelineItem["icon"]
+  logoSrc?: string
 }
 
 type BookOddsCandidate = {
@@ -161,8 +150,10 @@ type BookOddsCandidate = {
 type BookSpreadQuote = {
   homeLine?: number
   homeOdds?: number
+  homeLimit?: number
   awayLine?: number
   awayOdds?: number
+  awayLimit?: number
   source?: string
   bookTitle?: string
 }
@@ -171,6 +162,8 @@ type BookTotalQuote = {
   line?: number
   overOdds?: number
   underOdds?: number
+  overLimit?: number
+  underLimit?: number
   source?: string
   bookTitle?: string
 }
@@ -178,18 +171,35 @@ type BookTotalQuote = {
 type BookMoneylineQuote = {
   homeOdds?: number
   awayOdds?: number
+  homeLimit?: number
+  awayLimit?: number
   source?: string
   bookTitle?: string
 }
 
-const BOOK_OPTIONS: BookOption[] = [
-  { key: "fanduel", label: "FanDuel", logoSrc: "/fanduel.jpeg", icon: CircleDollarSign },
-  { key: "kalshi", label: "Kalshi", logoSrc: "/kalshi.png", icon: Landmark },
-  { key: "pinnacle", label: "Pinnacle", logoSrc: "/pinnacle.jpg", icon: ShieldCheck },
-  { key: "polymarket", label: "Polymarket", logoSrc: "/polymarket.png", icon: TrendingUp },
-  { key: "prophetx", label: "ProphetX", logoSrc: "/ProphetX.png", icon: Activity },
-  { key: "novig", label: "NoVig", logoSrc: "/Novig.png", icon: Waves },
-]
+const BOOK_LOGOS: Partial<Record<BookFilterKey, string>> = {
+  fanduel: "/fanduel.jpeg",
+  draftkings: "/draftkings.png",
+  betmgm: "/BETMGM-Logo-Color-Scheme-PNG-thumb.png",
+  caesars: "/CZR_BIG.D-96274f93.png",
+  betrivers: "/betrivers.png",
+  hardrockbet: "/hardrock.png",
+  fanatics: "/newfanaticslogo.png",
+  espnbet: "/ESPN-BET-Logo.png",
+  fliff: "/fliff.png",
+  circa: "/circasports.png",
+  pinnacle: "/pinnacle.jpg",
+  novig: "/Novig.png",
+  prophetx: "/ProphetX.png",
+  polymarket: "/polymarket.png",
+  kalshi: "/kalshi.png",
+}
+
+const BOOK_OPTIONS: BookOption[] = INSIDER_ODDS_SOURCE_ORDER.map((key) => ({
+  key,
+  label: getOddsSource(key)?.label ?? key.toUpperCase(),
+  logoSrc: BOOK_LOGOS[key],
+}))
 
 const BOOK_OPTIONS_BY_KEY: Record<BookFilterKey, BookOption> = BOOK_OPTIONS.reduce(
   (acc, option) => {
@@ -200,12 +210,33 @@ const BOOK_OPTIONS_BY_KEY: Record<BookFilterKey, BookOption> = BOOK_OPTIONS.redu
 )
 
 const DEFAULT_BOOK_FILTER: BookFilterKey = "fanduel"
+const MARKET_FILTERS: MarketFilter[] = ["spread", "moneyline", "total"]
+const BOOK_SCATTER_POINTS: Array<{ x: number; y: number }> = [
+  { x: 12, y: 14 },
+  { x: 32, y: 10 },
+  { x: 52, y: 16 },
+  { x: 74, y: 10 },
+  { x: 88, y: 19 },
+  { x: 20, y: 33 },
+  { x: 40, y: 30 },
+  { x: 60, y: 35 },
+  { x: 80, y: 29 },
+  { x: 10, y: 52 },
+  { x: 30, y: 54 },
+  { x: 50, y: 50 },
+  { x: 70, y: 56 },
+  { x: 88, y: 49 },
+  { x: 22, y: 73 },
+  { x: 43, y: 72 },
+  { x: 64, y: 76 },
+  { x: 84, y: 70 },
+]
 
 const resolveAccessConfig = (tier?: AccessTier): AccessConfig => {
   if (tier === "sharp" || tier === "syndicate") {
-    return { allowedFilters: ["spread", "moneyline", "total"], maxRows: {} }
+    return { allowedFilters: ["all", "spread", "moneyline", "total"], maxRows: {} }
   }
-  return { allowedFilters: ["spread", "moneyline", "total"], maxRows: {} }
+  return { allowedFilters: ["all", "spread", "moneyline", "total"], maxRows: {} }
 }
 
 const formatSigned = (value?: number | string | null) => {
@@ -242,6 +273,16 @@ const formatProbability = (value?: number | string | null) => {
   const numeric = coerceNumber(value)
   if (numeric == null) return "n/a"
   return `${(numeric * 100).toFixed(1)}%`
+}
+
+const resolveBookInitials = (label: string) => {
+  const words = label
+    .replace(/[()]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return "BK"
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase()
 }
 
 const resolveSportLabel = (sportKey?: string) => {
@@ -513,6 +554,7 @@ type EdgePick = {
   label: string | null
   edgePercent: number | null
   projection?: SharpProjectionMarket | null
+  marketKey?: MarketFilter
 }
 
 const normalizeToken = (value?: string | null) =>
@@ -524,8 +566,17 @@ const resolveBookKey = (value?: string | null): BookFilterKey | null => {
   const normalized = normalizeToken(value)
   if (!normalized) return null
   if (normalized.includes("fanduel")) return "fanduel"
+  if (normalized.includes("draftkings")) return "draftkings"
+  if (normalized.includes("betmgm")) return "betmgm"
+  if (normalized.includes("caesars") || normalized.includes("williamhillus")) return "caesars"
+  if (normalized.includes("betrivers")) return "betrivers"
+  if (normalized.includes("hardrock")) return "hardrockbet"
+  if (normalized.includes("fanatics") || normalized.includes("betfanatics")) return "fanatics"
+  if (normalized.includes("espnbet") || normalized.includes("thescorebet")) return "espnbet"
+  if (normalized.includes("fliff")) return "fliff"
   if (normalized.includes("kalshi")) return "kalshi"
   if (normalized.includes("pinnacle")) return "pinnacle"
+  if (normalized.includes("circa")) return "circa"
   if (normalized.includes("polymarket")) return "polymarket"
   if (normalized.includes("prophetx") || normalized.includes("prophet")) return "prophetx"
   if (normalized.includes("novig")) return "novig"
@@ -989,7 +1040,7 @@ const formatPickBrief = (pick: EdgePick) => {
   return formatEdgePick(pick.label, pick.edgePercent)
 }
 
-const marketEdge = (
+const marketEdgeFallback = (
   game: EdgeGame,
   filter: EdgeFilter,
   sport?: string
@@ -1063,6 +1114,187 @@ const marketEdge = (
   return { edgePercent: clampPercent(edge * scale) }
 }
 
+const resolveActiveMarketFilter = (
+  filter: EdgeFilter,
+  pick?: EdgePick | null
+): MarketFilter => {
+  if (filter !== "all") return filter
+  return pick?.marketKey ?? "spread"
+}
+
+const resolveEdgeForPick = ({
+  game,
+  market,
+  pick,
+  sport,
+  selectedBook,
+}: {
+  game: EdgeGame
+  market: MarketFilter
+  pick: EdgePick
+  sport?: string
+  selectedBook: BookFilterKey
+}) => {
+  if (pick.projection) {
+    const bookOdds = resolveBookOddsFromQuote(game, market, pick, selectedBook)
+    const bookBreakEven = impliedProbability(bookOdds)
+    if (bookBreakEven != null) {
+      return clampPercent((pick.projection.probability - bookBreakEven) * 100)
+    }
+    const projectionBreakEven = coerceNumber(pick.projection.breakEven)
+    if (projectionBreakEven != null) {
+      return clampPercent((pick.projection.probability - projectionBreakEven) * 100)
+    }
+    return clampPercent(pick.projection.edgePercent)
+  }
+  return marketEdgeFallback(game, market, sport).edgePercent
+}
+
+const resolveEdgeVsBook = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  sport: string | undefined,
+  selectedBook: BookFilterKey
+): MarketEdge => {
+  const activePick = resolveActivePickForFilter(game, filter, sport, selectedBook)
+  const market = resolveActiveMarketFilter(filter, activePick)
+  return {
+    edgePercent: resolveEdgeForPick({
+      game,
+      market,
+      pick: activePick,
+      sport,
+      selectedBook,
+    }),
+  }
+}
+
+const resolveLimitPressureFromQuotes = (
+  game: EdgeGame,
+  market: MarketFilter,
+  pick: EdgePick
+) => {
+  const sideToken = normalizeToken(pick.projection?.side ?? pick.label ?? "")
+  const side = resolveQuoteSide(game, pick)
+  const deltas: number[] = []
+
+  if (market === "spread") {
+    const quotes = Object.values(game.spread?.bookQuotes ?? {})
+    for (const quote of quotes) {
+      const forLimit =
+        side === "home"
+          ? coerceNumber(quote?.homeLimit)
+          : side === "away"
+            ? coerceNumber(quote?.awayLimit)
+            : coerceNumber(quote?.homeLimit ?? quote?.awayLimit)
+      const againstLimit =
+        side === "home"
+          ? coerceNumber(quote?.awayLimit)
+          : side === "away"
+            ? coerceNumber(quote?.homeLimit)
+            : null
+      if (forLimit == null || againstLimit == null) continue
+      const total = forLimit + againstLimit
+      if (!total) continue
+      deltas.push((forLimit - againstLimit) / total)
+    }
+  } else if (market === "total") {
+    const quotes = Object.values(game.total?.bookQuotes ?? {})
+    const isOver = sideToken.includes("over")
+    const isUnder = sideToken.includes("under")
+    for (const quote of quotes) {
+      const overLimit = coerceNumber(quote?.overLimit)
+      const underLimit = coerceNumber(quote?.underLimit)
+      if (overLimit == null || underLimit == null) continue
+      const forLimit = isOver ? overLimit : isUnder ? underLimit : Math.max(overLimit, underLimit)
+      const againstLimit = isOver ? underLimit : isUnder ? overLimit : Math.min(overLimit, underLimit)
+      const total = forLimit + againstLimit
+      if (!total) continue
+      deltas.push((forLimit - againstLimit) / total)
+    }
+  } else {
+    const quotes = Object.values(game.moneyline?.bookQuotes ?? {})
+    for (const quote of quotes) {
+      const forLimit =
+        side === "home"
+          ? coerceNumber(quote?.homeLimit)
+          : side === "away"
+            ? coerceNumber(quote?.awayLimit)
+            : coerceNumber(quote?.homeLimit ?? quote?.awayLimit)
+      const againstLimit =
+        side === "home"
+          ? coerceNumber(quote?.awayLimit)
+          : side === "away"
+            ? coerceNumber(quote?.homeLimit)
+            : null
+      if (forLimit == null || againstLimit == null) continue
+      const total = forLimit + againstLimit
+      if (!total) continue
+      deltas.push((forLimit - againstLimit) / total)
+    }
+  }
+
+  if (!deltas.length) return "Balanced limits"
+  const avgDelta = deltas.reduce((sum, value) => sum + value, 0) / deltas.length
+  if (avgDelta <= -0.2) return "Strong contraction"
+  if (avgDelta <= -0.08) return "Moderate contraction"
+  if (avgDelta >= 0.2) return "Strong expansion"
+  if (avgDelta >= 0.08) return "Moderate expansion"
+  return "Balanced limits"
+}
+
+const resolveLimitPressureLabelFromScore = (score: number) => {
+  if (score >= 0.05) return "Strong contraction"
+  if (score >= 0.015) return "Moderate contraction"
+  if (score <= -0.05) return "Strong expansion"
+  if (score <= -0.015) return "Moderate expansion"
+  return "Balanced limits"
+}
+
+const resolveLimitPressureDisplay = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick
+) => {
+  const projectionLabel = pick.projection?.limitPressureLabel
+  if (projectionLabel) return projectionLabel
+  const projectionScore = coerceNumber(pick.projection?.limitPressureScore)
+  if (projectionScore != null) {
+    return resolveLimitPressureLabelFromScore(projectionScore)
+  }
+  const market = resolveActiveMarketFilter(filter, pick)
+  return resolveLimitPressureFromQuotes(game, market, pick)
+}
+
+const resolveBetLabel = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick,
+  selectedBook: BookFilterKey
+) => {
+  const market = resolveActiveMarketFilter(filter, pick)
+
+  if (market === "moneyline") {
+    const side = pick.projection?.side ?? pick.label
+    return side ? `${side} ML` : "n/a"
+  }
+
+  if (market === "spread") {
+    const side = pick.projection?.side ?? pick.label
+    if (!side) return "n/a"
+    const lineValue = resolveBookLineValue(game, market, pick, selectedBook)
+    if (lineValue == null) return side
+    const lineLabel = lineValue === 0 ? "PK" : formatSigned(lineValue)
+    return `${side} ${lineLabel}`
+  }
+
+  const side = pick.projection?.side ?? pick.label
+  if (!side) return "n/a"
+  const lineValue = resolveBookLineValue(game, market, pick, selectedBook)
+  if (lineValue == null) return side
+  return `${side} ${lineValue.toFixed(1)}`
+}
+
 const edgeLabel = (edgePercent: number) => `${edgePercent.toFixed(1)}%`
 
 const resolveElectricPreset = (edgePercent: number) => {
@@ -1104,6 +1336,7 @@ const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
       label: resolveSpreadProjectionLabel(game, projection),
       edgePercent: projection.edgePercent,
       projection,
+      marketKey: "spread" as const,
     }
   }
   const modelLine = resolveModelSpread(game)
@@ -1116,8 +1349,8 @@ const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
   const pick = modelLine < resolvedMarketLine
     ? game.homeTeam
     : game.awayTeam
-  const edgePercent = marketEdge(game, "spread", sport).edgePercent
-  return { label: pick, edgePercent }
+  const edgePercent = marketEdgeFallback(game, "spread", sport).edgePercent
+  return { label: pick, edgePercent, marketKey: "spread" as const }
 }
 
 const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
@@ -1127,6 +1360,7 @@ const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
       label: resolveTotalProjectionLabel(game, projection),
       edgePercent: projection.edgePercent,
       projection,
+      marketKey: "total" as const,
     }
   }
   const marketLine = coerceNumber(game.total?.marketLine)
@@ -1147,8 +1381,8 @@ const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
     return { label: null, edgePercent: null }
   }
   const pick = modelLine > resolvedMarketLine ? "Over" : "Under"
-  const edgePercent = marketEdge(game, "total", sport).edgePercent
-  return { label: pick, edgePercent }
+  const edgePercent = marketEdgeFallback(game, "total", sport).edgePercent
+  return { label: pick, edgePercent, marketKey: "total" as const }
 }
 
 const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
@@ -1158,6 +1392,7 @@ const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
       label: projection.side,
       edgePercent: projection.edgePercent,
       projection,
+      marketKey: "moneyline" as const,
     }
   }
   const modelHomeProb = impliedProbability(
@@ -1183,14 +1418,15 @@ const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
   const homeDiff = modelHomeProb - marketHomeProb
   const awayDiff = modelAwayProb - marketAwayProb
   const pick = homeDiff >= awayDiff ? game.homeTeam : game.awayTeam
-  const edgePercent = marketEdge(game, "moneyline", sport).edgePercent
-  return { label: pick, edgePercent }
+  const edgePercent = marketEdgeFallback(game, "moneyline", sport).edgePercent
+  return { label: pick, edgePercent, marketKey: "moneyline" as const }
 }
 
 const resolveFilterLabels = (filter: EdgeFilter) => {
-  if (filter === "spread") return { projection: "Spread projection", odds: "Book line" }
-  if (filter === "moneyline") return { projection: "ML projection", odds: "Book line" }
-  return { projection: "Total projection", odds: "Book line" }
+  if (filter === "all") return { projection: "All markets", odds: "Book Price" }
+  if (filter === "spread") return { projection: "Spread bets", odds: "Book Price" }
+  if (filter === "moneyline") return { projection: "Moneyline bets", odds: "Book Price" }
+  return { projection: "Total bets", odds: "Book Price" }
 }
 
 const buildProjectionSharePayload = (
@@ -1201,26 +1437,38 @@ const buildProjectionSharePayload = (
   edgePercent: number,
   selectedBook: BookFilterKey
 ) => {
-  const filterLabels = resolveFilterLabels(filter)
-  const oddsLabel = resolveSharpLineDisplay(game, filter, activePick, selectedBook)
-
-  const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
-  const moveSummary = resolveMoveSummary(game, filter)
+  const activeMarket = resolveActiveMarketFilter(filter, activePick)
+  const filterLabels = resolveFilterLabels(activeMarket)
+  const oddsLabel = resolveSharpLineDisplay(game, activeMarket, activePick, selectedBook)
+  const sharpFairLabel = activePick.projection
+    ? formatProbability(activePick.projection.probability)
+    : "n/a"
+  const betLabel = resolveBetLabel(game, filter, activePick, selectedBook)
+  const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
+  const selectedBookLabel = BOOK_OPTIONS_BY_KEY[selectedBook]?.label ?? selectedBook
 
   return {
-    id: `${game.matchup}-${filter}`,
+    id: `${game.matchup}-${activeMarket}-${selectedBook}`,
     sportLabel: resolveSportLabel(sportKey),
     matchup: game.matchup,
-    filterLabel: filterLabels.projection,
-    pickLabel: formatPick(activePick),
+    marketLabel: filterLabels.projection,
+    betLabel,
     edgeLabel: edgeLabel(edgePercent),
-    oddsLabel,
-    sharpSummary: sharpSummary || "No sharp signals yet.",
-    moveSummary: moveSummary || "No line movement yet.",
+    sharpFairLabel,
+    bookPriceLabel: oddsLabel,
+    selectedBookLabel,
+    limitPressureLabel: limitPressure || "Balanced limits",
   }
 }
 
-const hasMarketData = (game: EdgeGame, filter: EdgeFilter) => {
+const hasMarketData = (game: EdgeGame, filter: EdgeFilter): boolean => {
+  if (filter === "all") {
+    return (
+      hasMarketData(game, "spread") ||
+      hasMarketData(game, "moneyline") ||
+      hasMarketData(game, "total")
+    )
+  }
   if (filter === "spread") {
     return (
       (coerceNumber(game.spread?.marketLine) != null ||
@@ -1262,25 +1510,18 @@ export default function MarketProjectionsTable({
   previewMode?: boolean
 }) {
   const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
-  const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
+  const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "all")
   const [leagueFilter, setLeagueFilter] = useState<string>("all")
   const [matchFilter, setMatchFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<DateWindowFilter>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedBook, setSelectedBook] = useState<BookFilterKey>(DEFAULT_BOOK_FILTER)
-  const [selectedLineBook, setSelectedLineBook] = useState<BookFilterKey>(DEFAULT_BOOK_FILTER)
   const [showBookPicker, setShowBookPicker] = useState(false)
-  const [bookPickerTarget, setBookPickerTarget] = useState<"odds" | "line">("odds")
   const activeBookOption = BOOK_OPTIONS_BY_KEY[selectedBook]
-  const activeLineBookOption = BOOK_OPTIONS_BY_KEY[selectedLineBook]
-  const bookTimelineData = useMemo(
-    () => buildBookFilterTimeline(bookPickerTarget === "odds" ? selectedBook : selectedLineBook),
-    [bookPickerTarget, selectedBook, selectedLineBook]
-  )
 
   useEffect(() => {
     if (!accessConfig.allowedFilters.includes(filter)) {
-      setFilter(accessConfig.allowedFilters[0] ?? "spread")
+      setFilter(accessConfig.allowedFilters[0] ?? "all")
     }
   }, [accessConfig.allowedFilters, filter])
 
@@ -1298,12 +1539,22 @@ export default function MarketProjectionsTable({
     )
     const sorted = [...scoped].sort(
       (a, b) =>
-        marketEdge(b, filter, resolveGameSportKey(b, sport)).edgePercent -
-        marketEdge(a, filter, resolveGameSportKey(a, sport)).edgePercent
+        resolveEdgeVsBook(
+          b,
+          filter,
+          resolveGameSportKey(b, sport),
+          selectedBook
+        ).edgePercent -
+        resolveEdgeVsBook(
+          a,
+          filter,
+          resolveGameSportKey(a, sport),
+          selectedBook
+        ).edgePercent
     )
     const maxRows = accessConfig.maxRows[filter]
     return Number.isFinite(maxRows) ? sorted.slice(0, maxRows) : sorted
-  }, [edges, filter, sport, accessConfig.maxRows])
+  }, [edges, filter, sport, accessConfig.maxRows, selectedBook])
   const baseEdges = sortedEdges
 
   const leagueOptions = useMemo(() => {
@@ -1338,10 +1589,12 @@ export default function MarketProjectionsTable({
       const activePick = resolveActivePickForFilter(
         game,
         filter,
-        resolveGameSportKey(game, sport)
+        resolveGameSportKey(game, sport),
+        selectedBook
       )
+      const activeMarket = resolveActiveMarketFilter(filter, activePick)
       const hasSelectedBookLine =
-        resolveBookLineForGame(game, filter, activePick, selectedBook) != null
+        resolveBookOddsFromQuote(game, activeMarket, activePick, selectedBook) != null
 
       if (leagueFilter !== "all" && leagueLabel !== leagueFilter) return false
       if (matchFilter !== "all" && matchupLabel !== matchFilter) return false
@@ -1359,11 +1612,7 @@ export default function MarketProjectionsTable({
 
   const filterLabels = resolveFilterLabels(filter)
   const handleBookSelect = (book: BookFilterKey) => {
-    if (bookPickerTarget === "odds") {
-      setSelectedBook(book)
-    } else {
-      setSelectedLineBook(book)
-    }
+    setSelectedBook(book)
     setShowBookPicker(false)
   }
 
@@ -1371,7 +1620,7 @@ export default function MarketProjectionsTable({
     <>
       {showBookPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3">
-          <div className="relative h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-black">
+          <div className="relative h-[88vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-white/15 bg-black">
             <button
               type="button"
               onClick={() => setShowBookPicker(false)}
@@ -1380,18 +1629,53 @@ export default function MarketProjectionsTable({
               Close
             </button>
             <div className="absolute left-4 top-4 z-[60] rounded-md border border-white/15 bg-black/70 px-3 py-2 text-xs text-white/80">
-              {bookPickerTarget === "odds"
-                ? "Select sportsbook for odds"
-                : "Select sportsbook for line"}
+              Select sportsbook ({BOOK_OPTIONS.length})
             </div>
-            <RadialOrbitalTimeline
-              timelineData={bookTimelineData}
-              onItemSelect={(id) => {
-                const option = BOOK_OPTIONS[id - 1]
-                if (!option) return
-                handleBookSelect(option.key)
-              }}
-            />
+            <div className="h-full overflow-y-auto px-4 pb-8 pt-16">
+              <div className="relative mx-auto h-[980px] max-w-6xl rounded-2xl border border-white/10 bg-black/40">
+                {BOOK_OPTIONS.map((option, index) => {
+                  const point = BOOK_SCATTER_POINTS[index % BOOK_SCATTER_POINTS.length]
+                  const isSelected = selectedBook === option.key
+
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => handleBookSelect(option.key)}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 text-center focus:outline-none"
+                      style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                    >
+                      <span
+                        className={`mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border text-[11px] font-semibold uppercase tracking-wide transition-all md:h-20 md:w-20 ${
+                          isSelected
+                            ? "border-emerald-300 bg-emerald-500/25 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.35)]"
+                            : "border-white/20 bg-white/5 text-white/70 hover:border-white/45 hover:text-white"
+                        }`}
+                      >
+                        {option.logoSrc ? (
+                          <Image
+                            src={option.logoSrc}
+                            alt={option.label}
+                            width={72}
+                            height={72}
+                            className="h-full w-full object-contain p-1"
+                          />
+                        ) : (
+                          resolveBookInitials(option.label)
+                        )}
+                      </span>
+                      <span
+                        className={`mt-2 block max-w-[120px] text-[11px] leading-tight ${
+                          isSelected ? "text-emerald-100" : "text-white/75"
+                        }`}
+                      >
+                        {option.label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1417,11 +1701,13 @@ export default function MarketProjectionsTable({
           >
             {accessConfig.allowedFilters.map((value) => (
               <option key={value} value={value}>
-                {value === "spread"
-                  ? "Stat: Spread"
-                  : value === "moneyline"
-                    ? "Stat: Moneyline"
-                    : "Stat: Total"}
+                {value === "all"
+                  ? "Market: All"
+                  : value === "spread"
+                    ? "Market: Spread"
+                    : value === "moneyline"
+                      ? "Market: Moneyline"
+                      : "Market: Total"}
               </option>
             ))}
           </select>
@@ -1458,19 +1744,22 @@ export default function MarketProjectionsTable({
 
           <button
             type="button"
-            onClick={() => {
-              setBookPickerTarget("odds")
-              setShowBookPicker(true)
-            }}
+            onClick={() => setShowBookPicker(true)}
             className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-xs text-white/85 transition-colors hover:border-emerald-300/60"
           >
-            <Image
-              src={activeBookOption.logoSrc}
-              alt={activeBookOption.label}
-              width={34}
-              height={34}
-              className="h-[34px] w-[34px] rounded-md object-contain"
-            />
+            {activeBookOption.logoSrc ? (
+              <Image
+                src={activeBookOption.logoSrc}
+                alt={activeBookOption.label}
+                width={34}
+                height={34}
+                className="h-[34px] w-[34px] rounded-md object-contain"
+              />
+            ) : (
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-md border border-white/20 bg-white/10 text-[10px] font-semibold tracking-wide text-white/85">
+                {resolveBookInitials(activeBookOption.label)}
+              </span>
+            )}
             <span>Book: {activeBookOption.label}</span>
           </button>
 
@@ -1480,6 +1769,11 @@ export default function MarketProjectionsTable({
             <span>{visibleEdges.length} rows</span>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] text-white/55">
+        Edge vs Book: sharp fair % minus selected book implied %. Sharp Fair %: limit-informed fair win probability. Bet: executable side and line.
+        {" "}Book Price: selected-book odds. Limit Pressure: contracting means lower max limits on your side vs the opposite side, expanding means higher max limits on your side, and balanced means limits are roughly even.
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -1494,18 +1788,25 @@ export default function MarketProjectionsTable({
             <div className="divide-y divide-white/5 sm:hidden">
               {visibleEdges.map((game, index) => {
                 const gameSport = resolveGameSportKey(game, sport)
-                const edgeMetrics = marketEdge(game, filter, gameSport)
-                const spreadPick = resolveSpreadEdgePick(game, gameSport)
-                const totalPick = resolveTotalEdgePick(game, gameSport)
-                const moneylinePick = resolveMoneylineEdgePick(game, gameSport)
-                const activePick =
-                  filter === "spread"
-                    ? spreadPick
-                    : filter === "moneyline"
-                      ? moneylinePick
-                      : totalPick
-                const moveSummary = resolveMoveSummary(game, filter)
-                const sharpLine = resolveSharpLineDisplay(game, filter, activePick, selectedBook)
+                const edgeMetrics = resolveEdgeVsBook(game, filter, gameSport, selectedBook)
+                const activePick = resolveActivePickForFilter(
+                  game,
+                  filter,
+                  gameSport,
+                  selectedBook
+                )
+                const betLabel = resolveBetLabel(game, filter, activePick, selectedBook)
+                const sharpFair = activePick.projection
+                  ? formatProbability(activePick.projection.probability)
+                  : "n/a"
+                const activeMarket = resolveActiveMarketFilter(filter, activePick)
+                const bookPrice = resolveSharpLineDisplay(
+                  game,
+                  activeMarket,
+                  activePick,
+                  selectedBook
+                )
+                const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
                 const sharePayload = buildProjectionSharePayload(
                   game,
                   filter,
@@ -1536,75 +1837,20 @@ export default function MarketProjectionsTable({
 
                     <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sharp Fair %</div>
+                        <div className="mt-1 text-white">{sharpFair}</div>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
                         <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Bet</div>
-                        <div className="mt-1 text-white">{activePick.label ?? "n/a"}</div>
+                        <div className="mt-1 text-white">{betLabel}</div>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setBookPickerTarget("line")
-                              setShowBookPicker(true)
-                            }}
-                            className="inline-flex items-center gap-1 transition-opacity hover:opacity-80"
-                          >
-                            <Image
-                              src={activeLineBookOption.logoSrc}
-                              alt={activeLineBookOption.label}
-                              width={24}
-                              height={24}
-                              className="h-6 w-6 rounded-md object-contain"
-                            />
-                            <span className="sr-only">Line Book</span>
-                          </button>
-                        </div>
-                        <div className="mt-1 text-white">
-                          {resolveLineCellValue(game, filter, activePick, selectedLineBook)}
-                        </div>
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Book Price</div>
+                        <div className="mt-1 text-white/80">{bookPrice}</div>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">% To Hit</div>
-                        <div className="mt-1 text-white">
-                          {activePick.projection
-                            ? formatProbability(activePick.projection.probability)
-                            : "n/a"}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Market</div>
-                        <div className="mt-1 text-white">
-                          {filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line Movement</div>
-                        <div className="mt-1 text-white/75">{moveSummary || "No line movement yet."}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setBookPickerTarget("odds")
-                              setShowBookPicker(true)
-                            }}
-                            className="inline-flex items-center gap-1 transition-opacity hover:opacity-80"
-                          >
-                            <Image
-                              src={activeBookOption.logoSrc}
-                              alt={activeBookOption.label}
-                              width={24}
-                              height={24}
-                              className="h-6 w-6 rounded-md object-contain"
-                            />
-                            <span className="sr-only">{filterLabels.odds}</span>
-                          </button>
-                        </div>
-                        <div className="mt-1 text-white/75">{sharpLine}</div>
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Limit Pressure</div>
+                        <div className="mt-1 text-white/80">{limitPressure}</div>
                       </div>
                     </div>
 
@@ -1617,71 +1863,60 @@ export default function MarketProjectionsTable({
             </div>
             <div className="hidden sm:block">
               <div className="overflow-x-auto">
-                <Table className="min-w-[1320px] text-[13px] text-white/75">
+                <Table className="min-w-[980px] text-[13px] text-white/75">
                   <TableHeader className="bg-black/70">
                     <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
-                      <TableHead className="w-[85px]">Edge</TableHead>
-                      <TableHead className="w-[240px]">Game</TableHead>
-                      <TableHead className="w-[190px]">Bet</TableHead>
-                      <TableHead className="w-[80px]">
+                      <TableHead className="w-[110px]">Edge vs Book</TableHead>
+                      <TableHead className="w-[110px]">Sharp Fair %</TableHead>
+                      <TableHead className="w-[360px]">Bet</TableHead>
+                      <TableHead className="w-[140px]">
                         <button
                           type="button"
-                          onClick={() => {
-                            setBookPickerTarget("line")
-                            setShowBookPicker(true)
-                          }}
+                          onClick={() => setShowBookPicker(true)}
                           className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
                         >
-                          <Image
-                            src={activeLineBookOption.logoSrc}
-                            alt={activeLineBookOption.label}
-                            width={24}
-                            height={24}
-                            className="h-6 w-6 rounded-md object-contain"
-                          />
-                          <span className="sr-only">Line Book</span>
+                          {activeBookOption.logoSrc ? (
+                            <Image
+                              src={activeBookOption.logoSrc}
+                              alt={activeBookOption.label}
+                              width={24}
+                              height={24}
+                              className="h-6 w-6 rounded-md object-contain"
+                            />
+                          ) : (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-md border border-white/20 bg-white/10 text-[8px] font-semibold tracking-wide text-white/85">
+                              {resolveBookInitials(activeBookOption.label)}
+                            </span>
+                          )}
+                          <span className="sr-only">Book Price</span>
                         </button>
                       </TableHead>
-                      <TableHead className="w-[100px]">Market</TableHead>
-                      <TableHead className="w-[90px]">% To Hit</TableHead>
-                      <TableHead className="w-[230px]">Line Movement</TableHead>
-                      <TableHead className="w-[170px]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBookPickerTarget("odds")
-                            setShowBookPicker(true)
-                          }}
-                          className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
-                        >
-                          <Image
-                            src={activeBookOption.logoSrc}
-                            alt={activeBookOption.label}
-                            width={24}
-                            height={24}
-                            className="h-6 w-6 rounded-md object-contain"
-                          />
-                          <span className="sr-only">{filterLabels.odds}</span>
-                        </button>
-                      </TableHead>
+                      <TableHead className="w-[220px]">Limit Pressure</TableHead>
                       <TableHead className="w-[90px] text-right">Share</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-white/5">
                     {visibleEdges.map((game, index) => {
                       const gameSport = resolveGameSportKey(game, sport)
-                      const edgeMetrics = marketEdge(game, filter, gameSport)
-                      const spreadPick = resolveSpreadEdgePick(game, gameSport)
-                      const totalPick = resolveTotalEdgePick(game, gameSport)
-                      const moneylinePick = resolveMoneylineEdgePick(game, gameSport)
-                      const activePick =
-                        filter === "spread"
-                          ? spreadPick
-                          : filter === "moneyline"
-                            ? moneylinePick
-                            : totalPick
-                      const moveSummary = resolveMoveSummary(game, filter)
-                      const sharpLine = resolveSharpLineDisplay(game, filter, activePick, selectedBook)
+                      const edgeMetrics = resolveEdgeVsBook(game, filter, gameSport, selectedBook)
+                      const activePick = resolveActivePickForFilter(
+                        game,
+                        filter,
+                        gameSport,
+                        selectedBook
+                      )
+                      const betLabel = resolveBetLabel(game, filter, activePick, selectedBook)
+                      const sharpFair = activePick.projection
+                        ? formatProbability(activePick.projection.probability)
+                        : "n/a"
+                      const activeMarket = resolveActiveMarketFilter(filter, activePick)
+                      const bookPrice = resolveSharpLineDisplay(
+                        game,
+                        activeMarket,
+                        activePick,
+                        selectedBook
+                      )
+                      const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
                       const sharePayload = buildProjectionSharePayload(
                         game,
                         filter,
@@ -1701,34 +1936,16 @@ export default function MarketProjectionsTable({
                               +{edgeMetrics.edgePercent.toFixed(1)}%
                             </span>
                           </TableCell>
+                          <TableCell className="align-top">{sharpFair}</TableCell>
                           <TableCell className="align-top">
-                            <div className="text-left text-sm font-semibold text-white">
-                              {game.awayTeam} vs {game.homeTeam}
-                            </div>
+                            <div className="text-left text-sm font-semibold text-white">{betLabel}</div>
                             <div className="mt-1 text-[11px] uppercase tracking-[0.15em] text-white/40">
-                              #{index + 1} | {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
+                              {game.awayTeam} vs {game.homeTeam} | #{index + 1} |{" "}
+                              {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
                             </div>
                           </TableCell>
-                          <TableCell className="align-top text-white/85">
-                            {activePick.label ?? "n/a"}
-                          </TableCell>
-                          <TableCell className="align-top">
-                            {resolveLineCellValue(game, filter, activePick, selectedLineBook)}
-                          </TableCell>
-                          <TableCell className="align-top">
-                            {filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"}
-                          </TableCell>
-                          <TableCell className="align-top">
-                            {activePick.projection
-                              ? formatProbability(activePick.projection.probability)
-                              : "n/a"}
-                          </TableCell>
-                          <TableCell className="align-top text-white/70">
-                            {moveSummary || "No line movement yet."}
-                          </TableCell>
-                          <TableCell className="align-top text-white/70">
-                            {sharpLine}
-                          </TableCell>
+                          <TableCell className="align-top text-white/80">{bookPrice}</TableCell>
+                          <TableCell className="align-top text-white/70">{limitPressure}</TableCell>
                           <TableCell className="align-top">
                             <div className="flex justify-end">
                               <ShareProjectionButton projection={sharePayload} />
@@ -1777,39 +1994,41 @@ export default function MarketProjectionsTable({
   )
 }
 
-const resolveActivePickForFilter = (game: EdgeGame, filter: EdgeFilter, sport?: string) => {
+const resolvePickForMarket = (game: EdgeGame, market: MarketFilter, sport?: string) => {
   const spreadPick = resolveSpreadEdgePick(game, sport)
   const totalPick = resolveTotalEdgePick(game, sport)
   const moneylinePick = resolveMoneylineEdgePick(game, sport)
-  if (filter === "spread") return spreadPick
-  if (filter === "moneyline") return moneylinePick
+  if (market === "spread") return spreadPick
+  if (market === "moneyline") return moneylinePick
   return totalPick
 }
 
-const buildBookFilterTimeline = (selectedBook: BookFilterKey): TimelineItem[] =>
-  BOOK_OPTIONS.map((book, index) => {
-    const previous = index === 0 ? BOOK_OPTIONS[BOOK_OPTIONS.length - 1] : BOOK_OPTIONS[index - 1]
-    const next = index === BOOK_OPTIONS.length - 1 ? BOOK_OPTIONS[0] : BOOK_OPTIONS[index + 1]
-    return {
-      id: index + 1,
-      title: book.label,
-      date: "Live",
-      content: `Use ${book.label} as the active sportsbook source for Sharp Projections.`,
-      category: "Sportsbook",
-      icon: book.icon,
-      logoSrc: book.logoSrc,
-      relatedIds: [
-        BOOK_OPTIONS.findIndex((item) => item.key === previous.key) + 1,
-        BOOK_OPTIONS.findIndex((item) => item.key === next.key) + 1,
-      ],
-      status: book.key === selectedBook ? "in-progress" : "pending",
-      energy: book.key === selectedBook ? 100 : 62,
-    }
-  })
+const resolveActivePickForFilter = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  sport?: string,
+  selectedBook: BookFilterKey = DEFAULT_BOOK_FILTER
+) => {
+  if (filter !== "all") {
+    return resolvePickForMarket(game, filter, sport)
+  }
 
+  const candidates = MARKET_FILTERS
+    .filter((market) => hasMarketData(game, market))
+    .map((market) => {
+      const pick = resolvePickForMarket(game, market, sport)
+      const edgePercent = resolveEdgeForPick({
+        game,
+        market,
+        pick,
+        sport,
+        selectedBook,
+      })
+      return { pick, edgePercent }
+    })
+    .sort((a, b) => b.edgePercent - a.edgePercent)
 
-
-
-
-
+  if (candidates.length) return candidates[0].pick
+  return resolvePickForMarket(game, "spread", sport)
+}
 

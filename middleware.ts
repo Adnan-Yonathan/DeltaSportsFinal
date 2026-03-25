@@ -39,6 +39,7 @@ const ALWAYS_PUBLIC_PREFIXES = [
   '/live-scores',
   '/market-projections',
   '/sharp-props',
+  '/odds-screen',
 ]
 
 const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [

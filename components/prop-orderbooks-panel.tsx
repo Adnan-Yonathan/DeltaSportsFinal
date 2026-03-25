@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
-import BoxLoader from "@/components/ui/box-loader"
 import ShareSharpPropsToolButton from "@/components/ShareSharpPropsToolButton"
 import { shouldPersistPropOrderbooksSnapshot } from "@/lib/services/prop-orderbooks-cache-guard"
 import { SHARP_PROPS_SOURCE_ORDER } from "@/lib/config/odds-sources"
@@ -1572,7 +1571,6 @@ export default function PropOrderbooksPanel({
   const totalCountLabel = `${filteredItems.length} props`
   const updatedLabel = lastUpdatedAt ? formatDateLabel(lastUpdatedAt) : "--"
   const fetchedLabel = cacheFetchedAt ? formatDateLabel(cacheFetchedAt) : null
-  const showInitialLoading = loading && !items.length
   const showHardError = !loading && !items.length && errorMessage
 
   return (
@@ -1677,19 +1675,12 @@ export default function PropOrderbooksPanel({
         </div>
       </div>
 
-      {showInitialLoading ? (
-        <div className="px-4 py-10">
-          <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
-            <div className="flex flex-col items-center gap-4">
-              <BoxLoader />
-              <span className="text-xs uppercase tracking-[0.3em] text-white/50">Loading orderbooks...</span>
-            </div>
-          </div>
-        </div>
-      ) : showHardError ? (
+      {showHardError ? (
         <div className="px-4 py-10 text-sm text-red-200">{errorMessage}</div>
       ) : filteredItems.length === 0 ? (
-        <div className="px-4 py-10 text-sm text-white/55">No order books match your filters.</div>
+        <div className="px-4 py-10 text-sm text-white/55">
+          {loading ? "Refreshing orderbooks..." : "No order books match your filters."}
+        </div>
       ) : (
         <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="max-h-[72vh] overflow-y-auto border-b border-white/10 bg-black/30 lg:border-b-0 lg:border-r">

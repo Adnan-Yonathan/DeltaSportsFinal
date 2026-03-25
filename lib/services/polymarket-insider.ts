@@ -61,6 +61,9 @@ const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
 export const MIN_INSIDER_SCORE = 70
+const GAMMA_API = 'https://gamma-api.polymarket.com'
+const MARKET_FETCH_CONCURRENCY = 10
+const FETCH_TIMEOUT_MS = 12_000
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 //
@@ -146,6 +149,64 @@ function getEasternWindowStart(daysBack: number): string {
 
 // ── Main feed query — reads from insider_feed_cache (populated by refresh cron) ──
 
+
+type GammaMarketStatus = {
+  closed?: boolean
+  active?: boolean
+  acceptingOrders?: boolean
+  status?: string | null
+}
+
+async function fetchJsonWithTimeout(url: string): Promise<unknown> {
+  const timeout = new Promise<null>((resolve) => {
+    setTimeout(() => resolve(null), FETCH_TIMEOUT_MS)
+  })
+
+  try {
+    const result = await Promise.race([
+      fetch(url, { cache: 'no-store' }).then((res) => (res.ok ? res.json() : null)),
+      timeout,
+    ])
+    return result
+  } catch {
+    return null
+  }
+}
+
+function isMarketSettled(market: GammaMarketStatus): boolean {
+  const status = String(market.status ?? '').toLowerCase()
+  if (status === 'settled' || status === 'resolved' || status === 'closed' || status === 'finalized') {
+    return true
+  }
+  if (market.closed === true) return true
+  if (market.active === false) return true
+  if (market.acceptingOrders === false) return true
+  return false
+}
+
+async function fetchSettledSlugs(slugs: string[]): Promise<Set<string>> {
+  const settled = new Set<string>()
+  const uniqueSlugs = [...new Set(slugs.filter(Boolean))]
+
+  for (let i = 0; i < uniqueSlugs.length; i += MARKET_FETCH_CONCURRENCY) {
+    const batch = uniqueSlugs.slice(i, i + MARKET_FETCH_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (slug) => {
+        const url = `${GAMMA_API}/markets?slug=${encodeURIComponent(slug)}&limit=1`
+        const raw = await fetchJsonWithTimeout(url)
+        if (!Array.isArray(raw) || raw.length === 0) return { slug, settled: false }
+        const market = raw[0] as GammaMarketStatus
+        return { slug, settled: isMarketSettled(market) }
+      })
+    )
+
+    for (const result of results) {
+      if (result.settled) settled.add(result.slug)
+    }
+  }
+
+  return settled
+}
 export async function getInsiderFeed(opts: {
   sport?: string
   limit?: number
@@ -168,14 +229,14 @@ export async function getInsiderFeed(opts: {
   const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
   const selectFieldsExtended =
-    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
+    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, event_slug, ' +
     'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
     'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
     'wallet_trade_count, current_price, current_american_odds, consensus_count, ' +
     'odds_snapshot, odds_snapshot_at, best_odds_american, best_odds_book, odds_source_count, odds_is_stale'
 
   const selectFieldsLegacy =
-    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
+    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, event_slug, ' +
     'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
     'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
     'wallet_trade_count, current_price, current_american_odds, consensus_count'
@@ -221,17 +282,11 @@ export async function getInsiderFeed(opts: {
 
   if (!data?.length) return []
 
-  // Filter out bets for games that already happened (slug date < today ET).
-  // Slugs look like "nba-nets-knicks-2026-03-21". Bets without a date in the
-  // slug (futures, series, etc.) pass through.
-  const filtered = (data as any[]).filter((row) => {
-    // $100 minimum bet size
-    if ((row.stake_usd ?? 0) < 100) return false
-    const slug = row.slug ?? ''
-    const m = slug.match(/(\d{4}-\d{2}-\d{2})/)
-    if (!m) return true // no date in slug — keep
-    return m[1] >= todayET
-  })
+  const minStakeRows = (data as any[]).filter((row) => (row.stake_usd ?? 0) >= 100)
+  const settledSlugs = await fetchSettledSlugs(
+    minStakeRows.map((row) => String(row.slug ?? '')).filter(Boolean)
+  )
+  const filtered = minStakeRows.filter((row) => !settledSlugs.has(String(row.slug ?? '')))
 
   const mapped = filtered.slice(offset).map((row): InsiderBet => ({
     wallet:                  row.wallet,
@@ -313,3 +368,4 @@ function deduplicateConflicts(bets: InsiderBet[]): InsiderBet[] {
   result.sort((a, b) => b.insider_score - a.insider_score)
   return result
 }
+

@@ -52,6 +52,7 @@ const POLYMARKET_SPORT_PREFIXES = [
   'ncaaf-',
   'nhl-',
   'mlb-',
+  'baseball-',
   'soccer-',
   'tennis-',
   'mma-',
@@ -78,6 +79,7 @@ const POLYMARKET_SPORT_SERIES = new Set([
   'cfb',
   'cbb',
   'mlb',
+  'baseball',
   'nhl',
   'ufc',
   'mma',
@@ -124,6 +126,7 @@ const POLYMARKET_SPORT_LABELS: Record<string, string> = {
   ncaaf: 'NCAAF',
   nhl: 'NHL',
   mlb: 'MLB',
+  baseball: 'MLB',
   soccer: 'SOCCER',
   tennis: 'TENNIS',
   mma: 'MMA',
@@ -170,6 +173,8 @@ const POLYMARKET_TAG_SPORT_LABELS: Record<string, string> = {
   collegebasketball: 'NCAAB',
   collegefootball: 'NCAAF',
   ncaafootball: 'NCAAF',
+  baseball: 'MLB',
+  majorleaguebaseball: 'MLB',
 }
 
 const MONTHS: Record<string, string> = {

@@ -315,6 +315,7 @@ const POLYMARKET_SERIES_TO_SPORT_KEY: Record<string, { sportKey: string; sportLa
   nfl: { sportKey: 'americanfootball_nfl', sportLabel: 'NFL' },
   'ncaa-cfb': { sportKey: 'americanfootball_ncaaf', sportLabel: 'NCAAF' },
   mlb: { sportKey: 'baseball_mlb', sportLabel: 'MLB' },
+  baseball: { sportKey: 'baseball_mlb', sportLabel: 'MLB' },
   nhl: { sportKey: 'icehockey_nhl', sportLabel: 'NHL' },
   wnba: { sportKey: 'basketball_wnba', sportLabel: 'WNBA' },
 }

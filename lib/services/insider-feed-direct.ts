@@ -58,7 +58,7 @@ const POSITION_BATCH_SIZE = 200
 const SPORT_PREFIXES = [
   // North American leagues
   'nba-', 'wnba-', 'nfl-', 'cfb-', 'cbb-', 'ncaab-', 'ncaaf-',
-  'nhl-', 'mlb-', 'mls-',
+  'nhl-', 'mlb-', 'baseball-', 'mls-',
   // Soccer / football — league-specific prefixes
   'ucl-', 'uel-', 'uecl-', 'epl-', 'laliga-', 'bundesliga-', 'seriea-',
   'ligue1-', 'soccer-', 'fifa-', 'coppa-', 'facup-',
@@ -81,7 +81,7 @@ const SPORT_PREFIXES = [
 
 const SPORT_LABEL_MAP: Record<string, string> = {
   // North American
-  nba: 'NBA', wnba: 'WNBA', nfl: 'NFL', nhl: 'NHL', mlb: 'MLB', mls: 'MLS',
+  nba: 'NBA', wnba: 'WNBA', nfl: 'NFL', nhl: 'NHL', mlb: 'MLB', baseball: 'MLB', mls: 'MLS',
   cfb: 'NCAAF', cbb: 'NCAAB', ncaab: 'NCAAB', ncaaf: 'NCAAF',
   // Soccer
   ucl: 'UCL', uel: 'UEL', uecl: 'UECL', epl: 'EPL', laliga: 'LA LIGA',
@@ -309,7 +309,7 @@ export type InsiderFeedRefreshResult = {
 }
 
 // Target sports for holder-based wallet discovery
-const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-']
+const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-', 'mlb-', 'baseball-']
 const HOLDER_DISCOVERY_MARKETS_PER_SPORT = 20
 const HOLDER_DISCOVERY_CONCURRENCY = 10
 const HOLDER_DISCOVERY_MAX_NEW_WALLETS = 150

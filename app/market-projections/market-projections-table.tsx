@@ -339,10 +339,15 @@ const formatLineMovement = (move: EdgeGame["lineMovements"][number]) => {
 }
 
 const resolveMoveSummary = (game: EdgeGame, filter: EdgeFilter) => {
-  const scoped = game.lineMovements.filter((move) => move.market === filter)
+  const scoped =
+    filter === "all"
+      ? game.lineMovements
+      : game.lineMovements.filter((move) => move.market === filter)
   const moves = scoped.length ? scoped : game.lineMovements
+  if (!moves.length) return "n/a"
+  const limit = filter === "all" ? 3 : 1
   return moves
-    .slice(0, 2)
+    .slice(0, limit)
     .map(formatLineMovement)
     .join(" | ")
 }
@@ -1773,7 +1778,7 @@ export default function MarketProjectionsTable({
 
       <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] text-white/55">
         Edge vs Book: sharp fair % minus selected book implied %. Sharp Fair %: limit-informed fair win probability. Bet: executable side and line.
-        {" "}Book Price: selected-book odds. Limit Pressure: contracting means lower max limits on your side vs the opposite side, expanding means higher max limits on your side, and balanced means limits are roughly even.
+        {" "}Book Price: selected-book odds. Line Movement: opening line to current line for the game and market. Limit Pressure: contracting means lower max limits on your side vs the opposite side, expanding means higher max limits on your side, and balanced means limits are roughly even.
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -1806,6 +1811,7 @@ export default function MarketProjectionsTable({
                   activePick,
                   selectedBook
                 )
+                const lineMovement = resolveMoveSummary(game, filter)
                 const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
                 const sharePayload = buildProjectionSharePayload(
                   game,
@@ -1848,6 +1854,10 @@ export default function MarketProjectionsTable({
                         <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Book Price</div>
                         <div className="mt-1 text-white/80">{bookPrice}</div>
                       </div>
+                      <div className="col-span-2 rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line Movement</div>
+                        <div className="mt-1 text-white/75">{lineMovement}</div>
+                      </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
                         <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Limit Pressure</div>
                         <div className="mt-1 text-white/80">{limitPressure}</div>
@@ -1863,12 +1873,13 @@ export default function MarketProjectionsTable({
             </div>
             <div className="hidden sm:block">
               <div className="overflow-x-auto">
-                <Table className="min-w-[980px] text-[13px] text-white/75">
+                <Table className="min-w-[1180px] text-[13px] text-white/75">
                   <TableHeader className="bg-black/70">
                     <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
                       <TableHead className="w-[110px]">Edge vs Book</TableHead>
                       <TableHead className="w-[110px]">Sharp Fair %</TableHead>
                       <TableHead className="w-[360px]">Bet</TableHead>
+                      <TableHead className="w-[260px]">Line Movement</TableHead>
                       <TableHead className="w-[140px]">
                         <button
                           type="button"
@@ -1916,6 +1927,7 @@ export default function MarketProjectionsTable({
                         activePick,
                         selectedBook
                       )
+                      const lineMovement = resolveMoveSummary(game, filter)
                       const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
                       const sharePayload = buildProjectionSharePayload(
                         game,
@@ -1944,6 +1956,7 @@ export default function MarketProjectionsTable({
                               {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
                             </div>
                           </TableCell>
+                          <TableCell className="align-top text-white/70">{lineMovement}</TableCell>
                           <TableCell className="align-top text-white/80">{bookPrice}</TableCell>
                           <TableCell className="align-top text-white/70">{limitPressure}</TableCell>
                           <TableCell className="align-top">

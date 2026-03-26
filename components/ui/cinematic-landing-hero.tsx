@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Activity, LineChart, Radar, Target } from "lucide-react";
 import { gsap } from "gsap";
@@ -17,6 +17,14 @@ const INJECTED_STYLES = `
   .main-card,
   .cta-wrapper {
     visibility: hidden;
+  }
+
+  /* Prevent first-paint static headline before intro animation starts */
+  .text-track,
+  .text-days,
+  .intro-chart {
+    visibility: hidden;
+    opacity: 0;
   }
 
   .film-grain {
@@ -468,7 +476,7 @@ export function CinematicLandingHero({
     };
   }, [isDesktop, shouldAnimate, isLowPerf]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldAnimate) {
       return;
     }
@@ -490,7 +498,7 @@ export function CinematicLandingHero({
       gsap.set([".card-left-text", ".card-right-text", ".device-scroll-wrapper", ".floating-badge", ".data-chip"], { autoAlpha: 0 });
       gsap.set(".cta-wrapper", { autoAlpha: 0, scale: 0.92, pointerEvents: "none" });
 
-      const introTl = gsap.timeline({ delay: isLowPerf ? 0.08 : 0.18 });
+      const introTl = gsap.timeline({ delay: 0 });
       introTl
         .to(".text-track", { duration: 0.7, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" })
         .to(".text-days", { duration: 0.62, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" }, "-=0.35");

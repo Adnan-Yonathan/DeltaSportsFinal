@@ -2,6 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
 import { INSIDER_ODDS_SOURCE_ORDER, getOddsSource } from "@/lib/config/odds-sources"
@@ -27,6 +36,7 @@ type SharpProjectionMarket = {
 }
 
 type EdgeGame = {
+  oddsApiId?: string
   sport?: string
   matchup: string
   homeTeam: string
@@ -117,7 +127,7 @@ type EdgeGame = {
   }
 }
 
-const coerceNumber = (value?: number | string | null) => {
+const coerceNumber = (value?: unknown) => {
   if (value == null) return null
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null
@@ -175,6 +185,20 @@ type BookMoneylineQuote = {
   awayLimit?: number
   source?: string
   bookTitle?: string
+}
+
+type LineHistoryPoint = {
+  t: string
+  value: number
+}
+
+type LimitHistoryPoint = {
+  t: string
+  score: number | null
+  label: string | null
+  forLimit: number | null
+  againstLimit: number | null
+  netLimit: number | null
 }
 
 const BOOK_LOGOS: Partial<Record<BookFilterKey, string>> = {
@@ -329,26 +353,31 @@ const formatSpreadLineLabel = (game: EdgeGame, line: number) => {
   return `${game.awayTeam} ${formatSigned(-line)}`
 }
 
-const formatLineMovement = (move: EdgeGame["lineMovements"][number]) => {
-  const formatter = move.market === "moneyline" ? formatOdds : formatSigned
-  const opening = formatter(move.openingLine)
-  const current = formatter(move.currentLine)
-  if (opening === "n/a" || current === "n/a") return `${move.market} move n/a`
-  return `${move.market} open ${opening} -> now ${current}`
+const resolveLineHistoryFallback = (game: EdgeGame, market: MarketFilter): LineHistoryPoint[] => {
+  const move = game.lineMovements.find((entry) => entry.market === market)
+  if (!move) return []
+  const opening = coerceNumber(move.openingLine)
+  const current = coerceNumber(move.currentLine)
+  if (opening == null || current == null) return []
+
+  const now = Date.now()
+  const commenceMs = Date.parse(game.commenceTime ?? "")
+  const startMs = Number.isFinite(commenceMs) ? Math.max(now - 6 * 60 * 60 * 1000, commenceMs - 8 * 60 * 60 * 1000) : now - 6 * 60 * 60 * 1000
+
+  return [
+    { t: new Date(startMs).toISOString(), value: opening },
+    { t: new Date(now).toISOString(), value: current },
+  ]
 }
 
-const resolveMoveSummary = (game: EdgeGame, filter: EdgeFilter) => {
-  const scoped =
-    filter === "all"
-      ? game.lineMovements
-      : game.lineMovements.filter((move) => move.market === filter)
-  const moves = scoped.length ? scoped : game.lineMovements
-  if (!moves.length) return "n/a"
-  const limit = filter === "all" ? 3 : 1
-  return moves
-    .slice(0, limit)
-    .map(formatLineMovement)
-    .join(" | ")
+const formatHistoryTime = (value?: string | null) => {
+  if (!value) return "n/a"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
 const matchesDateWindow = (commenceTime: string, window: DateWindowFilter) => {
@@ -561,6 +590,14 @@ type EdgePick = {
   marketKey?: MarketFilter
 }
 
+type HistoryModalState = {
+  view: "line" | "limit"
+  game: EdgeGame
+  market: MarketFilter
+  pick: EdgePick
+  pressureLabel?: string
+}
+
 const normalizeToken = (value?: string | null) =>
   String(value ?? "")
     .toLowerCase()
@@ -620,6 +657,93 @@ const resolveQuoteSide = (game: EdgeGame, pick: EdgePick): "home" | "away" | "un
   if (labelMatchesTeam(sideLabel, game.homeTeam)) return "home"
   if (labelMatchesTeam(sideLabel, game.awayTeam)) return "away"
   return "unknown"
+}
+
+const resolveCurrentLimitSnapshot = (
+  game: EdgeGame,
+  market: MarketFilter,
+  pick: EdgePick,
+  pressureLabel?: string
+) => {
+  let forLimit = 0
+  let againstLimit = 0
+  let samples = 0
+
+  if (market === "spread") {
+    const side = resolveQuoteSide(game, pick)
+    const quotes = Object.values(game.spread?.bookQuotes ?? {})
+    for (const quote of quotes) {
+      const homeLimit = coerceNumber(quote?.homeLimit)
+      const awayLimit = coerceNumber(quote?.awayLimit)
+      if (homeLimit == null || awayLimit == null) continue
+      if (side === "home") {
+        forLimit += homeLimit
+        againstLimit += awayLimit
+      } else if (side === "away") {
+        forLimit += awayLimit
+        againstLimit += homeLimit
+      } else {
+        forLimit += Math.max(homeLimit, awayLimit)
+        againstLimit += Math.min(homeLimit, awayLimit)
+      }
+      samples += 1
+    }
+  } else if (market === "total") {
+    const sideToken = normalizeToken(pick.projection?.side ?? pick.label ?? "")
+    const quotes = Object.values(game.total?.bookQuotes ?? {})
+    for (const quote of quotes) {
+      const overLimit = coerceNumber(quote?.overLimit)
+      const underLimit = coerceNumber(quote?.underLimit)
+      if (overLimit == null || underLimit == null) continue
+      if (sideToken.includes("over")) {
+        forLimit += overLimit
+        againstLimit += underLimit
+      } else if (sideToken.includes("under")) {
+        forLimit += underLimit
+        againstLimit += overLimit
+      } else {
+        forLimit += Math.max(overLimit, underLimit)
+        againstLimit += Math.min(overLimit, underLimit)
+      }
+      samples += 1
+    }
+  } else {
+    const side = resolveQuoteSide(game, pick)
+    const quotes = Object.values(game.moneyline?.bookQuotes ?? {})
+    for (const quote of quotes) {
+      const homeLimit = coerceNumber(quote?.homeLimit)
+      const awayLimit = coerceNumber(quote?.awayLimit)
+      if (homeLimit == null || awayLimit == null) continue
+      if (side === "home") {
+        forLimit += homeLimit
+        againstLimit += awayLimit
+      } else if (side === "away") {
+        forLimit += awayLimit
+        againstLimit += homeLimit
+      } else {
+        forLimit += Math.max(homeLimit, awayLimit)
+        againstLimit += Math.min(homeLimit, awayLimit)
+      }
+      samples += 1
+    }
+  }
+
+  const score = coerceNumber(pick.projection?.limitPressureScore)
+  const label =
+    pressureLabel ??
+    pick.projection?.limitPressureLabel ??
+    (score != null ? resolveLimitPressureLabelFromScore(score) : null)
+
+  if (!samples && score == null) return null
+
+  return {
+    t: new Date().toISOString(),
+    score,
+    label: label ?? null,
+    forLimit: samples ? forLimit : null,
+    againstLimit: samples ? againstLimit : null,
+    netLimit: samples ? forLimit - againstLimit : null,
+  }
 }
 
 const resolveSpreadQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
@@ -1521,6 +1645,12 @@ export default function MarketProjectionsTable({
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedBook, setSelectedBook] = useState<BookFilterKey>(DEFAULT_BOOK_FILTER)
   const [showBookPicker, setShowBookPicker] = useState(false)
+  const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [lineHistoryPoints, setLineHistoryPoints] = useState<LineHistoryPoint[]>([])
+  const [lineHistoryBook, setLineHistoryBook] = useState<string | null>(null)
+  const [limitHistoryPoints, setLimitHistoryPoints] = useState<LimitHistoryPoint[]>([])
   const activeBookOption = BOOK_OPTIONS_BY_KEY[selectedBook]
 
   useEffect(() => {
@@ -1585,6 +1715,134 @@ export default function MarketProjectionsTable({
     }
   }, [leagueFilter, leagueOptions])
 
+  useEffect(() => {
+    if (!historyModal) return
+
+    let cancelled = false
+
+    const loadLineHistory = async () => {
+      const fallback = resolveLineHistoryFallback(historyModal.game, historyModal.market)
+      const oddsApiId = historyModal.game.oddsApiId
+      if (!oddsApiId) {
+        if (cancelled) return
+        setLineHistoryPoints(fallback)
+        setLineHistoryBook(null)
+        return
+      }
+
+      const response = await fetch("/api/lines/history-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          gameIds: [oddsApiId],
+          markets: [historyModal.market],
+          hours: 120,
+          lineType: "current",
+          bookmaker: selectedBook,
+          limit: 2000,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to load line history.")
+      }
+
+      const entry =
+        payload?.series?.[oddsApiId]?.[historyModal.market]
+      const parsed: LineHistoryPoint[] = Array.isArray(entry?.points)
+        ? entry.points
+            .map((point: any) => ({
+              t: typeof point?.t === "string" ? point.t : "",
+              value: coerceNumber(point?.value) ?? Number.NaN,
+            }))
+            .filter((point: LineHistoryPoint) => point.t && Number.isFinite(point.value))
+        : []
+
+      if (cancelled) return
+      setLineHistoryPoints(parsed.length ? parsed : fallback)
+      setLineHistoryBook(typeof entry?.book === "string" ? entry.book : null)
+    }
+
+    const loadLimitHistory = async () => {
+      const params = new URLSearchParams({
+        market: historyModal.market,
+        hours: "120",
+        limit: "1000",
+      })
+      const sportKey = resolveGameSportKey(historyModal.game, sport)
+      if (sportKey) params.set("sport", sportKey)
+      if (historyModal.game.oddsApiId) params.set("oddsApiId", historyModal.game.oddsApiId)
+      params.set("homeTeam", historyModal.game.homeTeam)
+      params.set("awayTeam", historyModal.game.awayTeam)
+      if (historyModal.game.commenceTime) params.set("commenceTime", historyModal.game.commenceTime)
+
+      const response = await fetch(
+        `/api/market-projections/limit-history?${params.toString()}`,
+        { cache: "no-store" }
+      )
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to load limit history.")
+      }
+
+      const parsed: LimitHistoryPoint[] = Array.isArray(payload?.points)
+        ? payload.points
+            .map((point: any) => ({
+              t: typeof point?.t === "string" ? point.t : "",
+              score: coerceNumber(point?.score),
+              label: typeof point?.label === "string" ? point.label : null,
+              forLimit: coerceNumber(point?.forLimit),
+              againstLimit: coerceNumber(point?.againstLimit),
+              netLimit: coerceNumber(point?.netLimit),
+            }))
+            .filter((point: LimitHistoryPoint) => Boolean(point.t))
+        : []
+
+      if (parsed.length) {
+        if (cancelled) return
+        setLimitHistoryPoints(parsed)
+        return
+      }
+
+      const fallback = resolveCurrentLimitSnapshot(
+        historyModal.game,
+        historyModal.market,
+        historyModal.pick,
+        historyModal.pressureLabel
+      )
+      if (cancelled) return
+      setLimitHistoryPoints(fallback ? [fallback] : [])
+    }
+
+    const run = async () => {
+      setHistoryLoading(true)
+      setHistoryError(null)
+      setLineHistoryPoints([])
+      setLineHistoryBook(null)
+      setLimitHistoryPoints([])
+      try {
+        if (historyModal.view === "line") {
+          await loadLineHistory()
+        } else {
+          await loadLimitHistory()
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unable to load chart history."
+        if (!cancelled) setHistoryError(message)
+      } finally {
+        if (!cancelled) setHistoryLoading(false)
+      }
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [historyModal, selectedBook, sport])
+
   const filteredEdges = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return baseEdges.filter((game) => {
@@ -1620,8 +1878,195 @@ export default function MarketProjectionsTable({
     setShowBookPicker(false)
   }
 
+  const openLineHistory = (game: EdgeGame, market: MarketFilter, pick: EdgePick) => {
+    setHistoryModal({
+      view: "line",
+      game,
+      market,
+      pick,
+    })
+  }
+
+  const openLimitHistory = (
+    game: EdgeGame,
+    market: MarketFilter,
+    pick: EdgePick,
+    pressureLabel?: string
+  ) => {
+    setHistoryModal({
+      view: "limit",
+      game,
+      market,
+      pick,
+      pressureLabel,
+    })
+  }
+
   return (
     <>
+      {historyModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-3">
+          <div className="relative w-full max-w-4xl rounded-2xl border border-white/15 bg-[#040608] p-4">
+            <button
+              type="button"
+              onClick={() => setHistoryModal(null)}
+              className="absolute right-4 top-4 rounded-md border border-white/20 bg-black/60 px-3 py-1.5 text-xs text-white/80 hover:border-white/40"
+            >
+              Close
+            </button>
+            <div className="pr-20">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/45">
+                {historyModal.view === "line" ? "Line movement history" : "Limit pressure history"}
+              </p>
+              <h3 className="mt-1 text-base font-semibold text-white">
+                {historyModal.game.awayTeam} vs {historyModal.game.homeTeam}
+              </h3>
+              <p className="mt-1 text-xs text-white/55">
+                {historyModal.market.toUpperCase()} | {formatShortDateTime(historyModal.game.commenceTime)}
+                {historyModal.view === "line" && lineHistoryBook ? ` | ${lineHistoryBook}` : ""}
+              </p>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3">
+              {historyLoading ? (
+                <div className="py-14 text-center text-sm text-white/60">Loading history...</div>
+              ) : historyError ? (
+                <div className="py-14 text-center text-sm text-red-200">{historyError}</div>
+              ) : historyModal.view === "line" ? (
+                lineHistoryPoints.length ? (
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={lineHistoryPoints}>
+                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 4" />
+                        <XAxis
+                          dataKey="t"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => formatHistoryTime(value)}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) =>
+                            historyModal.market === "moneyline"
+                              ? formatOdds(value)
+                              : formatSigned(value)
+                          }
+                        />
+                        <Tooltip
+                          labelFormatter={(label) => formatShortDateTime(String(label))}
+                          formatter={(value: unknown) => {
+                            const numeric = coerceNumber(value)
+                            return [
+                              historyModal.market === "moneyline"
+                                ? formatOdds(numeric)
+                                : formatSigned(numeric),
+                              "Line",
+                            ]
+                          }}
+                          contentStyle={{
+                            background: "rgba(0,0,0,0.9)",
+                            border: "1px solid rgba(255,255,255,0.16)",
+                            borderRadius: "10px",
+                            color: "white",
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#4ade80"
+                          strokeWidth={2.4}
+                          dot={false}
+                          activeDot={{ r: 4, fill: "#86efac" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="py-14 text-center text-sm text-white/60">No line movement history yet.</div>
+                )
+              ) : limitHistoryPoints.length ? (
+                <div className="space-y-3">
+                  <div className="h-[240px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={limitHistoryPoints}>
+                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 4" />
+                        <XAxis
+                          dataKey="t"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => formatHistoryTime(value)}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => formatCurrency(value)}
+                        />
+                        <Tooltip
+                          labelFormatter={(label) => formatShortDateTime(String(label))}
+                          formatter={(value: unknown, name: string) => [formatCurrency(coerceNumber(value)), name]}
+                          contentStyle={{
+                            background: "rgba(0,0,0,0.9)",
+                            border: "1px solid rgba(255,255,255,0.16)",
+                            borderRadius: "10px",
+                            color: "white",
+                          }}
+                        />
+                        <Line type="monotone" dataKey="forLimit" name="For" stroke="#60a5fa" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="againstLimit" name="Against" stroke="#f87171" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="netLimit" name="Net" stroke="#4ade80" strokeWidth={2.3} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-[130px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={limitHistoryPoints}>
+                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 4" />
+                        <XAxis
+                          dataKey="t"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => formatHistoryTime(value)}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => {
+                            const numeric = coerceNumber(value)
+                            return numeric == null ? "n/a" : numeric.toFixed(3)
+                          }}
+                        />
+                        <Tooltip
+                          labelFormatter={(label) => formatShortDateTime(String(label))}
+                          formatter={(value: unknown) => {
+                            const numeric = coerceNumber(value)
+                            return [numeric == null ? "n/a" : numeric.toFixed(3), "Pressure score"]
+                          }}
+                          contentStyle={{
+                            background: "rgba(0,0,0,0.9)",
+                            border: "1px solid rgba(255,255,255,0.16)",
+                            borderRadius: "10px",
+                            color: "white",
+                          }}
+                        />
+                        <Line type="monotone" dataKey="score" name="Pressure score" stroke="#facc15" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-14 text-center text-sm text-white/60">No limit history yet.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {showBookPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3">
           <div className="relative h-[88vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-white/15 bg-black">
@@ -1777,7 +2222,7 @@ export default function MarketProjectionsTable({
 
       <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] text-white/55">
         Edge vs Book: sharp fair % minus selected book implied %. Sharp Fair %: limit-informed fair win probability. Bet: executable side and line.
-        {" "}Book Price: selected-book odds. Line Movement: opening line to current line for the game and market. Limit Pressure: contracting means lower max limits on your side vs the opposite side, expanding means higher max limits on your side, and balanced means limits are roughly even.
+        {" "}Book Price: selected-book odds. Line Movement: click to open full line history chart. Limit Pressure: click pressure label (contraction/expansion/balanced) to view full limit history.
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -1810,7 +2255,6 @@ export default function MarketProjectionsTable({
                   activePick,
                   selectedBook
                 )
-                const lineMovement = resolveMoveSummary(game, filter)
                 const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
                 const sharePayload = buildProjectionSharePayload(
                   game,
@@ -1855,11 +2299,25 @@ export default function MarketProjectionsTable({
                       </div>
                       <div className="col-span-2 rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
                         <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line Movement</div>
-                        <div className="mt-1 text-white/75">{lineMovement}</div>
+                        <button
+                          type="button"
+                          onClick={() => openLineHistory(game, activeMarket, activePick)}
+                          className="mt-1 rounded-md border border-emerald-300/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-200 transition-colors hover:border-emerald-200/60"
+                        >
+                          View history
+                        </button>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
                         <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Limit Pressure</div>
-                        <div className="mt-1 text-white/80">{limitPressure}</div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openLimitHistory(game, activeMarket, activePick, limitPressure)
+                          }
+                          className="mt-1 rounded-md border border-sky-300/30 bg-sky-500/10 px-2 py-1 text-[11px] font-medium text-sky-100 transition-colors hover:border-sky-200/60"
+                        >
+                          {limitPressure}
+                        </button>
                       </div>
                     </div>
 
@@ -1926,7 +2384,6 @@ export default function MarketProjectionsTable({
                         activePick,
                         selectedBook
                       )
-                      const lineMovement = resolveMoveSummary(game, filter)
                       const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
                       const sharePayload = buildProjectionSharePayload(
                         game,
@@ -1955,9 +2412,27 @@ export default function MarketProjectionsTable({
                               {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
                             </div>
                           </TableCell>
-                          <TableCell className="align-top text-white/70">{lineMovement}</TableCell>
+                          <TableCell className="align-top text-white/70">
+                            <button
+                              type="button"
+                              onClick={() => openLineHistory(game, activeMarket, activePick)}
+                              className="rounded-md border border-emerald-300/30 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-200 transition-colors hover:border-emerald-200/60"
+                            >
+                              View history
+                            </button>
+                          </TableCell>
                           <TableCell className="align-top text-white/80">{bookPrice}</TableCell>
-                          <TableCell className="align-top text-white/70">{limitPressure}</TableCell>
+                          <TableCell className="align-top text-white/70">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openLimitHistory(game, activeMarket, activePick, limitPressure)
+                              }
+                              className="rounded-md border border-sky-300/30 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100 transition-colors hover:border-sky-200/60"
+                            >
+                              {limitPressure}
+                            </button>
+                          </TableCell>
                           <TableCell className="align-top">
                             <div className="flex justify-end">
                               <ShareProjectionButton projection={sharePayload} />

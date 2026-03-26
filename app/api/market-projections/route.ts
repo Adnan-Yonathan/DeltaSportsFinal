@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
+import { snapshotMarketLimitHistory } from "@/lib/services/market-limit-history"
 import { isWithinSharpRefreshWindow } from "@/lib/utils/sharp-refresh-window"
 
 const CACHE_TTL_MS = 1000 * 60 * 30
@@ -453,6 +454,11 @@ const computeAndPersistRefresh = async ({
       edges: sanitizedEdges as any,
       pickedAt: updatedAt,
     })
+    await snapshotMarketLimitHistory({
+      sport,
+      edges: sanitizedEdges,
+      recordedAt: updatedAt,
+    })
     await writeCache(sport, sanitizedEdges)
     return {
       updatedAt,
@@ -531,12 +537,18 @@ export async function GET(request: Request) {
         limit,
         date,
       })
+      const updatedAt = new Date().toISOString()
       const hydratedEdges = hydrateMissingSharpProjections(result.edges ?? [], sport)
       const upcomingEdges = filterNotStartedEdges(hydratedEdges)
       const sanitizedEdges = stripNonSharpBookOdds(upcomingEdges)
+      await snapshotMarketLimitHistory({
+        sport,
+        edges: sanitizedEdges,
+        recordedAt: updatedAt,
+      })
       return NextResponse.json({
         ok: true,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
         sport,
         edgeCount: sanitizedEdges.length,
         ...(includeEdges ? { edges: sanitizedEdges } : {}),

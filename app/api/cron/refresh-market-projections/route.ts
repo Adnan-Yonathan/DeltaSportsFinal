@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
+import { snapshotMarketLimitHistory } from "@/lib/services/market-limit-history"
 import {
   isWithinSharpRefreshWindow,
   SHARP_REFRESH_WINDOW_LABEL,
@@ -88,10 +89,16 @@ export async function GET(req: NextRequest) {
       try {
         const { result, usedFallback } = await analyzeWithSharpFallback(sport)
         const edges = result.edges ?? []
+        const refreshedAt = new Date().toISOString()
         await recordMarketProjectionPicks({
           sport,
           edges: edges as any,
-          pickedAt: new Date().toISOString(),
+          pickedAt: refreshedAt,
+        })
+        await snapshotMarketLimitHistory({
+          sport,
+          edges,
+          recordedAt: refreshedAt,
         })
 
         const { data: existing } = (await supabase
@@ -125,7 +132,7 @@ export async function GET(req: NextRequest) {
             {
               sport,
               edges,
-              updated_at: new Date().toISOString(),
+              updated_at: refreshedAt,
             } as any,
             { onConflict: "sport" }
           )) as unknown as { error: any }

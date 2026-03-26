@@ -305,9 +305,8 @@ const isUpcomingGame = (commenceTime?: string) => {
   if (!commenceTime) return true
   const time = Date.parse(commenceTime)
   if (!Number.isFinite(time)) return true
-  // Keep live/recent games visible so today's slate does not disappear mid-day.
-  const lookbackMs = 3 * 60 * 60 * 1000
-  return time >= Date.now() - lookbackMs
+  // Hide a bet as soon as the game starts.
+  return time > Date.now()
 }
 
 type DateWindowFilter = "all" | "today" | "24h" | "3d"

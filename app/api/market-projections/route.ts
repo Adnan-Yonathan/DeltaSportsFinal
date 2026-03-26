@@ -6,7 +6,6 @@ import { buildSharpProjections } from "@/lib/services/sharp-projections"
 import { isWithinSharpRefreshWindow } from "@/lib/utils/sharp-refresh-window"
 
 const CACHE_TTL_MS = 1000 * 60 * 30
-const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
 const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
 const REFRESH_LOCK_TTL_MS = 1000 * 60 * 8
 
@@ -198,6 +197,21 @@ const mergeSharpContextFromCache = (
 
 const stripNonSharpBookOdds = (edges: any[]) => edges
 
+const isNotStartedGame = (commenceTime?: string | null, nowMs = Date.now()) => {
+  if (!commenceTime) return true
+  const gameTimeMs = Date.parse(commenceTime)
+  if (!Number.isFinite(gameTimeMs)) return true
+  return gameTimeMs > nowMs
+}
+
+const filterNotStartedEdges = (edges?: any[], nowMs = Date.now()) => {
+  if (!Array.isArray(edges) || edges.length === 0) return []
+  return edges.filter((edge) => {
+    const commenceTime = edge?.commenceTime ?? edge?.commence_time
+    return isNotStartedGame(commenceTime, nowMs)
+  })
+}
+
 const mergeWhaleAlerts = (
   nextEdges: any[],
   cachedEdges?: any[]
@@ -331,7 +345,8 @@ const readCache = async (sport: string) => {
 
     if (error || !data) return null
     const hydratedEdges = hydrateMissingSharpProjections(data.edges ?? [], sport)
-    const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
+    const upcomingEdges = filterNotStartedEdges(hydratedEdges)
+    const sanitizedEdges = stripNonSharpBookOdds(upcomingEdges)
     return {
       edges: sanitizedEdges,
       updatedAt: data.updated_at,
@@ -346,7 +361,8 @@ const writeCache = async (sport: string, edges: any[]) => {
   try {
     const supabase = createServiceClient()
     const hydratedEdges = hydrateMissingSharpProjections(edges, sport)
-    const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
+    const upcomingEdges = filterNotStartedEdges(hydratedEdges)
+    const sanitizedEdges = stripNonSharpBookOdds(upcomingEdges)
     const { error } = (await supabase.from("market_projections_cache" as any).upsert(
       {
         sport,
@@ -371,7 +387,7 @@ const isCurrentSlateGame = (commenceTime?: string | null, nowMs = Date.now()) =>
   const gameTimeMs = Date.parse(commenceTime)
   if (!Number.isFinite(gameTimeMs)) return false
   return (
-    gameTimeMs >= nowMs - CURRENT_SLATE_LOOKBACK_MS &&
+    gameTimeMs > nowMs &&
     gameTimeMs <= nowMs + CURRENT_SLATE_LOOKAHEAD_MS
   )
 }
@@ -426,7 +442,8 @@ const computeAndPersistRefresh = async ({
     cachedEdges
   )
   const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
-  const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
+  const upcomingEdges = filterNotStartedEdges(hydratedEdges)
+  const sanitizedEdges = stripNonSharpBookOdds(upcomingEdges)
   const currentSlateEdgeCount = countCurrentSlateEdges(sanitizedEdges)
 
   if (!(currentSlateEdgeCount === 0 && hasCurrentSlateCache)) {
@@ -515,7 +532,8 @@ export async function GET(request: Request) {
         date,
       })
       const hydratedEdges = hydrateMissingSharpProjections(result.edges ?? [], sport)
-      const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
+      const upcomingEdges = filterNotStartedEdges(hydratedEdges)
+      const sanitizedEdges = stripNonSharpBookOdds(upcomingEdges)
       return NextResponse.json({
         ok: true,
         updatedAt: new Date().toISOString(),

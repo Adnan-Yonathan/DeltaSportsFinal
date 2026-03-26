@@ -189,7 +189,8 @@ type BookMoneylineQuote = {
 
 type LineHistoryPoint = {
   t: string
-  value: number
+  line: number | null
+  odds: number | null
 }
 
 type LimitHistoryPoint = {
@@ -365,8 +366,8 @@ const resolveLineHistoryFallback = (game: EdgeGame, market: MarketFilter): LineH
   const startMs = Number.isFinite(commenceMs) ? Math.max(now - 6 * 60 * 60 * 1000, commenceMs - 8 * 60 * 60 * 1000) : now - 6 * 60 * 60 * 1000
 
   return [
-    { t: new Date(startMs).toISOString(), value: opening },
-    { t: new Date(now).toISOString(), value: current },
+    { t: new Date(startMs).toISOString(), line: opening, odds: null },
+    { t: new Date(now).toISOString(), line: current, odds: null },
   ]
 }
 
@@ -657,6 +658,20 @@ const resolveQuoteSide = (game: EdgeGame, pick: EdgePick): "home" | "away" | "un
   if (labelMatchesTeam(sideLabel, game.homeTeam)) return "home"
   if (labelMatchesTeam(sideLabel, game.awayTeam)) return "away"
   return "unknown"
+}
+
+const resolveLineHistorySide = (
+  game: EdgeGame,
+  market: MarketFilter,
+  pick: EdgePick
+): "home" | "away" | "over" | "under" => {
+  if (market === "total") {
+    const token = normalizeToken(pick.projection?.side ?? pick.label ?? "")
+    if (token.includes("under")) return "under"
+    return "over"
+  }
+  const side = resolveQuoteSide(game, pick)
+  return side === "away" ? "away" : "home"
 }
 
 const resolveCurrentLimitSnapshot = (
@@ -1723,10 +1738,15 @@ export default function MarketProjectionsTable({
     const loadLineHistory = async () => {
       const fallback = resolveLineHistoryFallback(historyModal.game, historyModal.market)
       const oddsApiId = historyModal.game.oddsApiId
+      const side = resolveLineHistorySide(
+        historyModal.game,
+        historyModal.market,
+        historyModal.pick
+      )
       if (!oddsApiId) {
         if (cancelled) return
         setLineHistoryPoints(fallback)
-        setLineHistoryBook(null)
+        setLineHistoryBook("Pinnacle")
         return
       }
 
@@ -1736,10 +1756,19 @@ export default function MarketProjectionsTable({
         cache: "no-store",
         body: JSON.stringify({
           gameIds: [oddsApiId],
+          games: [
+            {
+              id: oddsApiId,
+              homeTeam: historyModal.game.homeTeam,
+              awayTeam: historyModal.game.awayTeam,
+              commenceTime: historyModal.game.commenceTime,
+            },
+          ],
           markets: [historyModal.market],
+          side,
           hours: 120,
           lineType: "current",
-          bookmaker: selectedBook,
+          bookmaker: "pinnacle",
           limit: 2000,
         }),
       })
@@ -1750,18 +1779,43 @@ export default function MarketProjectionsTable({
 
       const entry =
         payload?.series?.[oddsApiId]?.[historyModal.market]
-      const parsed: LineHistoryPoint[] = Array.isArray(entry?.points)
-        ? entry.points
-            .map((point: any) => ({
-              t: typeof point?.t === "string" ? point.t : "",
-              value: coerceNumber(point?.value) ?? Number.NaN,
-            }))
-            .filter((point: LineHistoryPoint) => point.t && Number.isFinite(point.value))
-        : []
+      const linePoints = Array.isArray(entry?.linePoints)
+        ? entry.linePoints
+        : Array.isArray(entry?.points)
+          ? entry.points
+          : []
+      const oddsPoints = Array.isArray(entry?.oddsPoints) ? entry.oddsPoints : []
+
+      const byTime = new Map<string, { line: number | null; odds: number | null }>()
+      for (const point of linePoints) {
+        const t = typeof point?.t === "string" ? point.t : ""
+        const line = coerceNumber(point?.value)
+        if (!t || line == null) continue
+        const existing = byTime.get(t) ?? { line: null, odds: null }
+        existing.line = line
+        byTime.set(t, existing)
+      }
+      for (const point of oddsPoints) {
+        const t = typeof point?.t === "string" ? point.t : ""
+        const odds = coerceNumber(point?.value)
+        if (!t || odds == null) continue
+        const existing = byTime.get(t) ?? { line: null, odds: null }
+        existing.odds = odds
+        byTime.set(t, existing)
+      }
+
+      const parsed: LineHistoryPoint[] = Array.from(byTime.entries())
+        .map(([t, values]) => ({
+          t,
+          line: values.line,
+          odds: values.odds,
+        }))
+        .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
+        .filter((point) => point.t && (point.line != null || point.odds != null))
 
       if (cancelled) return
       setLineHistoryPoints(parsed.length ? parsed : fallback)
-      setLineHistoryBook(typeof entry?.book === "string" ? entry.book : null)
+      setLineHistoryBook("Pinnacle")
     }
 
     const loadLimitHistory = async () => {
@@ -1851,7 +1905,7 @@ export default function MarketProjectionsTable({
     return () => {
       cancelled = true
     }
-  }, [historyModal, selectedBook, sport])
+  }, [historyModal, sport])
 
   const filteredEdges = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -1956,6 +2010,7 @@ export default function MarketProjectionsTable({
                           tickFormatter={(value) => formatHistoryTime(value)}
                         />
                         <YAxis
+                          yAxisId="line"
                           tickLine={false}
                           axisLine={false}
                           tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
@@ -1965,10 +2020,21 @@ export default function MarketProjectionsTable({
                               : formatSigned(value)
                           }
                         />
+                        <YAxis
+                          yAxisId="odds"
+                          orientation="right"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => formatOdds(value)}
+                        />
                         <Tooltip
                           labelFormatter={(label) => formatShortDateTime(String(label))}
-                          formatter={(value: unknown) => {
+                          formatter={(value: unknown, name: string) => {
                             const numeric = coerceNumber(value)
+                            if (name === "Odds") {
+                              return [formatOdds(numeric), "Odds"]
+                            }
                             return [
                               historyModal.market === "moneyline"
                                 ? formatOdds(numeric)
@@ -1985,11 +2051,22 @@ export default function MarketProjectionsTable({
                         />
                         <Line
                           type="monotone"
-                          dataKey="value"
+                          yAxisId="line"
+                          dataKey="line"
+                          name="Line"
                           stroke="#4ade80"
                           strokeWidth={2.4}
                           dot={false}
                           activeDot={{ r: 4, fill: "#86efac" }}
+                        />
+                        <Line
+                          type="monotone"
+                          yAxisId="odds"
+                          dataKey="odds"
+                          name="Odds"
+                          stroke="#60a5fa"
+                          strokeWidth={2.2}
+                          dot={false}
                         />
                       </LineChart>
                     </ResponsiveContainer>

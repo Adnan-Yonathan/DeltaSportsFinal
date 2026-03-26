@@ -257,9 +257,6 @@ function MobileCheckoutLayout({
                 Then just {formatDailyPrice(selectedPlan.daily)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
               </p>
             ) : null}
-            <p className="mt-1.5 text-[11px] text-white/35">
-              A $1 activation fee is charged today and credited toward your first payment.
-            </p>
           </div>
 
           <div className="space-y-6 px-5 py-5">
@@ -433,9 +430,6 @@ function DesktopCheckoutLayout({
             {selectedPlan
               ? `Start your 7-day trial for free, then ${formatDailyPrice(selectedPlan.daily)} billed ${selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.`
               : 'Start your 7-day trial for free.'}
-          </p>
-          <p className="mt-1.5 text-xs text-white/35">
-            A $1 activation fee is charged today and credited toward your first payment.
           </p>
         </div>
 

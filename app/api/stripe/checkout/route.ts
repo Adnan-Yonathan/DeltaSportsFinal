@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe, PRICE_IDS, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
-import { getTrialFeePrice } from '@/lib/stripe-trial-fee'
 import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -111,13 +110,6 @@ export async function POST(req: NextRequest) {
 
     const isTrialEligible = Boolean(planConfig.trialDays) && !hasUsedTrial
 
-    let trialFeeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
-
-    if (isTrialEligible) {
-      const feePriceId = await getTrialFeePrice()
-      trialFeeLineItems = [{ price: feePriceId, quantity: 1 }]
-    }
-
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
       metadata: {
         supabase_user_id: user.id,
@@ -138,7 +130,6 @@ export async function POST(req: NextRequest) {
           price: priceId,
           quantity: 1,
         },
-        ...trialFeeLineItems,
       ],
       subscription_data: subscriptionData,
       success_url: resolvedSuccessUrl,

@@ -22,6 +22,102 @@ interface LineSnapshot {
   moneylineAway?: number
 }
 
+const normalizeBookToken = (value: string | null | undefined) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+const isPinnacleBook = (value: string | null | undefined) =>
+  normalizeBookToken(value).includes('pinnacle')
+const resolveLeagueFromSport = (sport: string) =>
+  sport
+    .replace('basketball_', '')
+    .replace('americanfootball_', '')
+    .replace('icehockey_', '')
+    .toUpperCase()
+const appendSnapshotsFromGames = ({
+  sport,
+  games,
+  snapshots,
+  includePinnacleOnly = false,
+}: {
+  sport: string
+  games: any[]
+  snapshots: LineSnapshot[]
+  includePinnacleOnly?: boolean
+}) => {
+  const league = resolveLeagueFromSport(sport)
+  for (const game of games || []) {
+    for (const bookmaker of game.bookmakers || []) {
+      const bookTitle = String(bookmaker?.title || bookmaker?.key || '')
+      const pinnacle = isPinnacleBook(bookTitle)
+      if (includePinnacleOnly && !pinnacle) continue
+      const spreadMarket = bookmaker.markets.find((m: any) => m.key === 'spreads')
+      if (spreadMarket && spreadMarket.outcomes.length >= 2) {
+        const homeOutcome = spreadMarket.outcomes.find((o: any) => o.name === game.home_team)
+        const awayOutcome = spreadMarket.outcomes.find((o: any) => o.name === game.away_team)
+        if (homeOutcome && awayOutcome) {
+          snapshots.push({
+            sport,
+            league,
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            gameTime: game.commence_time,
+            oddsApiId: game.id,
+            bookmaker: bookTitle,
+            marketType: 'spread',
+            lineType: 'current',
+            spreadHome: homeOutcome.point,
+            spreadAway: awayOutcome.point,
+            spreadHomeOdds: homeOutcome.price,
+            spreadAwayOdds: awayOutcome.price,
+          })
+        }
+      }
+      const totalMarket = bookmaker.markets.find((m: any) => m.key === 'totals')
+      if (totalMarket && totalMarket.outcomes.length >= 2) {
+        const overOutcome = totalMarket.outcomes.find((o: any) => o.name === 'Over')
+        const underOutcome = totalMarket.outcomes.find((o: any) => o.name === 'Under')
+        if (overOutcome && underOutcome) {
+          snapshots.push({
+            sport,
+            league,
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            gameTime: game.commence_time,
+            oddsApiId: game.id,
+            bookmaker: bookTitle,
+            marketType: 'total',
+            lineType: 'current',
+            totalLine: overOutcome.point,
+            totalOverOdds: overOutcome.price,
+            totalUnderOdds: underOutcome.price,
+          })
+        }
+      }
+      const mlMarket = bookmaker.markets.find((m: any) => m.key === 'h2h')
+      if (mlMarket && mlMarket.outcomes.length >= 2) {
+        const homeOutcome = mlMarket.outcomes.find((o: any) => o.name === game.home_team)
+        const awayOutcome = mlMarket.outcomes.find((o: any) => o.name === game.away_team)
+        if (homeOutcome && awayOutcome) {
+          snapshots.push({
+            sport,
+            league,
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            gameTime: game.commence_time,
+            oddsApiId: game.id,
+            bookmaker: bookTitle,
+            marketType: 'moneyline',
+            lineType: 'current',
+            moneylineHome: homeOutcome.price,
+            moneylineAway: awayOutcome.price,
+          })
+        }
+      }
+    }
+  }
+}
+
 /**
  * Record current lines for specified sports
  * This should be called periodically (e.g., every 30 minutes) to track line movements
@@ -29,102 +125,61 @@ interface LineSnapshot {
 export async function recordCurrentLines(sports: string[]): Promise<number> {
   const supabase = createClient()
   const allSnapshots: LineSnapshot[] = []
-
   for (const sport of sports) {
     try {
-      const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+      const sbdGames = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
         revalidateSeconds: 600,
         forceProvider: 'sportsbettingdime',
       })
-
-      for (const game of oddsData) {
-        // Determine league from sport key
-        const league = sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()
-
-        for (const bookmaker of game.bookmakers) {
-          // Record spreads
-          const spreadMarket = bookmaker.markets.find(m => m.key === 'spreads')
-          if (spreadMarket && spreadMarket.outcomes.length >= 2) {
-            const homeOutcome = spreadMarket.outcomes.find(o => o.name === game.home_team)
-            const awayOutcome = spreadMarket.outcomes.find(o => o.name === game.away_team)
-
-            if (homeOutcome && awayOutcome) {
-              allSnapshots.push({
-                sport: sport,
-                league: league,
-                homeTeam: game.home_team,
-                awayTeam: game.away_team,
-                gameTime: game.commence_time,
-                oddsApiId: game.id,
-                bookmaker: bookmaker.title,
-                marketType: 'spread',
-                lineType: 'current',
-                spreadHome: homeOutcome.point,
-                spreadAway: awayOutcome.point,
-                spreadHomeOdds: homeOutcome.price,
-                spreadAwayOdds: awayOutcome.price,
-              })
-            }
-          }
-
-          // Record totals
-          const totalMarket = bookmaker.markets.find(m => m.key === 'totals')
-          if (totalMarket && totalMarket.outcomes.length >= 2) {
-            const overOutcome = totalMarket.outcomes.find(o => o.name === 'Over')
-            const underOutcome = totalMarket.outcomes.find(o => o.name === 'Under')
-
-            if (overOutcome && underOutcome) {
-              allSnapshots.push({
-                sport: sport,
-                league: league,
-                homeTeam: game.home_team,
-                awayTeam: game.away_team,
-                gameTime: game.commence_time,
-                oddsApiId: game.id,
-                bookmaker: bookmaker.title,
-                marketType: 'total',
-                lineType: 'current',
-                totalLine: overOutcome.point,
-                totalOverOdds: overOutcome.price,
-                totalUnderOdds: underOutcome.price,
-              })
-            }
-          }
-
-          // Record moneylines
-          const mlMarket = bookmaker.markets.find(m => m.key === 'h2h')
-          if (mlMarket && mlMarket.outcomes.length >= 2) {
-            const homeOutcome = mlMarket.outcomes.find(o => o.name === game.home_team)
-            const awayOutcome = mlMarket.outcomes.find(o => o.name === game.away_team)
-
-            if (homeOutcome && awayOutcome) {
-              allSnapshots.push({
-                sport: sport,
-                league: league,
-                homeTeam: game.home_team,
-                awayTeam: game.away_team,
-                gameTime: game.commence_time,
-                oddsApiId: game.id,
-                bookmaker: bookmaker.title,
-                marketType: 'moneyline',
-                lineType: 'current',
-                moneylineHome: homeOutcome.price,
-                moneylineAway: awayOutcome.price,
-              })
-            }
-          }
-        }
-      }
+      appendSnapshotsFromGames({
+        sport,
+        games: sbdGames,
+        snapshots: allSnapshots,
+      })
     } catch (err) {
-      console.error(`Error fetching odds for ${sport}:`, err)
+      console.error(`Error fetching baseline lines for ${sport}:`, err)
+      // Continue with other sports even if one fails
+    }
+    try {
+      const pinnacleGames = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+        revalidateSeconds: 600,
+        forceProvider: 'odds-api-io',
+        bookmakers: ['pinnacle'],
+      })
+      appendSnapshotsFromGames({
+        sport,
+        games: pinnacleGames,
+        snapshots: allSnapshots,
+        includePinnacleOnly: true,
+      })
+    } catch (err) {
+      console.warn(`Pinnacle-only fetch unavailable for ${sport}:`, err)
       // Continue with other sports even if one fails
     }
   }
-
+  const dedupedSnapshots = Array.from(
+    new Map(
+      allSnapshots.map((snap) => {
+        const key = [
+          snap.sport,
+          snap.oddsApiId,
+          snap.marketType,
+          normalizeBookToken(snap.bookmaker),
+          snap.lineType,
+          snap.spreadHome ?? '',
+          snap.spreadAway ?? '',
+          snap.totalLine ?? '',
+          snap.moneylineHome ?? '',
+          snap.moneylineAway ?? '',
+        ].join('|')
+        return [key, snap]
+      })
+    ).values()
+  )
   // Batch insert all snapshots
-  if (allSnapshots.length > 0) {
+  if (dedupedSnapshots.length > 0) {
     const { error } = await supabase.from('lines').insert(
-      allSnapshots.map(snap => ({
+      dedupedSnapshots.map(snap => ({
         sport: snap.sport,
         league: snap.league,
         home_team: snap.homeTeam,
@@ -145,16 +200,14 @@ export async function recordCurrentLines(sports: string[]): Promise<number> {
         moneyline_away: snap.moneylineAway,
       }))
     )
-
     if (error) {
       console.error('Error recording lines:', error)
       throw new Error(`Failed to record lines: ${error.message}`)
     } else {
-      console.log(`✓ Recorded ${allSnapshots.length} line snapshots`)
+      console.log(`Recorded ${dedupedSnapshots.length} line snapshots`)
     }
   }
-
-  return allSnapshots.length
+  return dedupedSnapshots.length
 }
 
 /**
@@ -400,3 +453,4 @@ export async function markOpeningLines(sport: string): Promise<number> {
   console.log(`Marked ${markedCount} games with opening lines`)
   return markedCount
 }
+

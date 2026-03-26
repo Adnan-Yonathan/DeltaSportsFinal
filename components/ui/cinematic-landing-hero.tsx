@@ -13,6 +13,12 @@ if (typeof window !== "undefined") {
 }
 
 const INJECTED_STYLES = `
+  /* Prevent SSR flash of post-scroll layers before GSAP initializes */
+  .main-card,
+  .cta-wrapper {
+    visibility: hidden;
+  }
+
   .film-grain {
     position: absolute;
     inset: 0;

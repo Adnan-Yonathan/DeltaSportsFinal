@@ -1782,11 +1782,8 @@ export default function MarketProjectionsTable({
         { cache: "no-store" }
       )
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload?.error || "Unable to load limit history.")
-      }
 
-      const parsed: LimitHistoryPoint[] = Array.isArray(payload?.points)
+      const parsed: LimitHistoryPoint[] = response.ok && Array.isArray(payload?.points)
         ? payload.points
             .map((point: any) => ({
               t: typeof point?.t === "string" ? point.t : "",
@@ -1830,7 +1827,20 @@ export default function MarketProjectionsTable({
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unable to load chart history."
-        if (!cancelled) setHistoryError(message)
+        if (!cancelled) {
+          if (historyModal.view === "limit") {
+            const fallback = resolveCurrentLimitSnapshot(
+              historyModal.game,
+              historyModal.market,
+              historyModal.pick,
+              historyModal.pressureLabel
+            )
+            setLimitHistoryPoints(fallback ? [fallback] : [])
+            setHistoryError(fallback ? null : message)
+          } else {
+            setHistoryError(message)
+          }
+        }
       } finally {
         if (!cancelled) setHistoryLoading(false)
       }

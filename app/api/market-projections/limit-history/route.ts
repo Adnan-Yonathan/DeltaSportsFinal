@@ -84,7 +84,13 @@ export async function GET(request: Request) {
     const { data, error } = (await query) as unknown as { data: any[] | null; error: any }
     if (error) {
       console.error("[limit-history] query failed", error)
-      return NextResponse.json({ error: "Failed to fetch limit history." }, { status: 500 })
+      return NextResponse.json({
+        ok: true,
+        market,
+        count: 0,
+        points: [],
+        unavailable: true,
+      })
     }
 
     const points = (data ?? []).map((row) => ({
@@ -107,9 +113,11 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("[limit-history] unexpected error", error)
-    return NextResponse.json(
-      { error: "Failed to fetch limit history." },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      ok: true,
+      count: 0,
+      points: [],
+      unavailable: true,
+    })
   }
 }

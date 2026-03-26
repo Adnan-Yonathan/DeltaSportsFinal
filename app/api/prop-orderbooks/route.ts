@@ -5,11 +5,16 @@ import {
   type PropOrderbookItem,
 } from '@/lib/services/prop-liquidity-detector'
 import { resolveSnapshotDiagnostics } from '@/lib/services/prop-orderbooks-cache-guard'
+import { getUsMarketDayKey } from '@/lib/utils/upcoming-event-filter'
 import {
-  filterUpcomingEventItems,
-  getUsMarketDayKey,
-  resolveEventDayKey,
-} from '@/lib/utils/upcoming-event-filter'
+  DEFAULT_PROP_ORDERBOOKS_DEPTH,
+  DEFAULT_PROP_ORDERBOOKS_MIN_SHARP_NOTIONAL,
+  filterPropOrderbooksItemsByDateWindow,
+  PERSISTED_PROP_ORDERBOOKS_LIMIT,
+  type PropOrderbooksDateWindow,
+  persistPropOrderbooksSnapshot,
+  readPersistedPropOrderbooksSnapshot,
+} from '@/lib/services/prop-orderbooks-snapshot'
 
 export const dynamic = 'force-dynamic'
 const NO_STORE_HEADERS = {
@@ -25,20 +30,6 @@ const SUPPORTED_SPORTS = new Set([
   'basketball_ncaab',
   'americanfootball_ncaaf',
 ])
-
-type DateWindow = 'today' | 'upcoming'
-
-const filterItemsByDateWindow = (
-  items: PropOrderbookItem[],
-  todayKey: string,
-  dateWindow: DateWindow
-) => {
-  if (dateWindow === 'upcoming') {
-    return filterUpcomingEventItems(items, todayKey)
-  }
-
-  return items.filter((item) => resolveEventDayKey(item.eventDate) === todayKey)
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -59,32 +50,102 @@ export async function GET(req: NextRequest) {
     }
 
     const normalizedLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 60
-    const normalizedDepth = Number.isFinite(depth) ? Math.min(Math.max(depth, 1), 20) : 8
+    const normalizedDepth = Number.isFinite(depth)
+      ? Math.min(Math.max(depth, 1), 20)
+      : DEFAULT_PROP_ORDERBOOKS_DEPTH
     const normalizedMinSharpNotional = Number.isFinite(minSharpNotional)
       ? Math.max(minSharpNotional, 0)
-      : 100
+      : DEFAULT_PROP_ORDERBOOKS_MIN_SHARP_NOTIONAL
     const mode =
       requestedModeParam === 'fast' || requestedModeParam === 'full'
         ? requestedModeParam
         : 'full'
-    const dateWindow: DateWindow = dateWindowParam === 'today' ? 'today' : 'upcoming'
+    const dateWindow: PropOrderbooksDateWindow =
+      dateWindowParam === 'today' ? 'today' : 'upcoming'
     const todayKey = getUsMarketDayKey()
+    const canUsePersistentCache =
+      normalizedDepth === DEFAULT_PROP_ORDERBOOKS_DEPTH &&
+      normalizedMinSharpNotional === DEFAULT_PROP_ORDERBOOKS_MIN_SHARP_NOTIONAL
+
+    if (canUsePersistentCache && !forceRefresh) {
+      const persisted = await readPersistedPropOrderbooksSnapshot({
+        sport,
+        depth: normalizedDepth,
+        minSharpNotional: normalizedMinSharpNotional,
+        limit: normalizedLimit,
+        dateWindow,
+        todayKey,
+      })
+      if (persisted) {
+        const diagnostics = resolveSnapshotDiagnostics(persisted.items)
+        return NextResponse.json(
+          {
+            ok: true,
+            sport,
+            updatedAt: persisted.updatedAt,
+            count: persisted.items.length,
+            items: persisted.items,
+            sourceCounts: diagnostics.sourceCounts,
+            cache: {
+              forcedRefresh: false,
+              source: persisted.source,
+              fetchedAt: persisted.fetchedAt,
+              cacheAgeMs: persisted.cacheAgeMs,
+            },
+            diagnostics,
+          },
+          { headers: NO_STORE_HEADERS }
+        )
+      }
+    }
+
+    const computeLimit =
+      canUsePersistentCache && sport === 'all'
+        ? Math.max(normalizedLimit, PERSISTED_PROP_ORDERBOOKS_LIMIT)
+        : normalizedLimit
 
     const snapshot = await fetchPropOrderbooksSnapshot({
       sportKey: sport,
-      limit: normalizedLimit,
+      limit: computeLimit,
       depth: normalizedDepth,
       minSharpNotional: normalizedMinSharpNotional,
       mode,
     })
 
-    const filteredItems = filterItemsByDateWindow(snapshot.items, todayKey, dateWindow)
-    const responseItems =
-      sport === 'all'
-        ? filteredItems.slice(0, normalizedLimit)
-        : filteredItems
-            .filter((item) => item.sportKey === sport)
-            .slice(0, normalizedLimit)
+    if (canUsePersistentCache) {
+      await persistPropOrderbooksSnapshot({
+        sport,
+        depth: normalizedDepth,
+        minSharpNotional: normalizedMinSharpNotional,
+        updatedAt: snapshot.updatedAt,
+        items: snapshot.items,
+      })
+    }
+
+    const persistedFallback = await readPersistedPropOrderbooksSnapshot({
+      sport,
+      depth: normalizedDepth,
+      minSharpNotional: normalizedMinSharpNotional,
+      limit: normalizedLimit,
+      dateWindow,
+      todayKey,
+    })
+    const liveItems: PropOrderbookItem[] =
+      persistedFallback?.items ??
+      (() => {
+        const filteredByDate = filterPropOrderbooksItemsByDateWindow(
+          snapshot.items,
+          todayKey,
+          dateWindow
+        )
+        if (sport === 'all') {
+          return filteredByDate.slice(0, normalizedLimit)
+        }
+        return filteredByDate
+          .filter((item) => item.sportKey === sport)
+          .slice(0, normalizedLimit)
+      })()
+    const responseItems = persistedFallback?.items ?? liveItems
 
     const diagnostics = resolveSnapshotDiagnostics(responseItems)
 
@@ -98,9 +159,17 @@ export async function GET(req: NextRequest) {
         sourceCounts: diagnostics.sourceCounts,
         cache: {
           forcedRefresh: forceRefresh,
-          source: mode === 'fast' ? 'snapshot_live_fast' : 'snapshot_live_full',
-          fetchedAt: null,
-          cacheAgeMs: null,
+          source: persistedFallback
+            ? persistedFallback.source
+            : mode === 'fast'
+              ? canUsePersistentCache
+                ? 'live_computed_persisted_fast'
+                : 'live_computed_fast'
+              : canUsePersistentCache
+                ? 'live_computed_persisted_full'
+                : 'live_computed_full',
+          fetchedAt: persistedFallback?.fetchedAt ?? null,
+          cacheAgeMs: persistedFallback?.cacheAgeMs ?? null,
         },
         diagnostics,
       },

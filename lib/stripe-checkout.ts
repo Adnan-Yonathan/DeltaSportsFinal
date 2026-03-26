@@ -1,6 +1,6 @@
 import type Stripe from 'stripe'
 import { stripe, PRICE_IDS, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
-import { getTrialFeePrice, getTrialFeeCoupon } from '@/lib/stripe-trial-fee'
+import { getTrialFeePrice } from '@/lib/stripe-trial-fee'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 
 type CheckoutContext = {
@@ -94,29 +94,19 @@ export const buildSubscriptionData = (
     : {}),
 })
 
-export const buildCheckoutDiscounts = (
-  couponId?: string
-): Stripe.Checkout.SessionCreateParams.Discount[] | undefined =>
-  couponId ? [{ coupon: couponId }] : undefined
-
-/** Returns extra line items + coupon id when the user is trial-eligible. */
+/** Returns extra line items when the user is trial-eligible. */
 export const buildTrialFeeLineItems = async (
   context: CheckoutContext
 ): Promise<{
   extraLineItems: Stripe.Checkout.SessionCreateParams.LineItem[]
-  couponId: string | null
 }> => {
   const isTrialEligible = Boolean(context.planConfig.trialDays) && !context.hasUsedTrial
-  if (!isTrialEligible) return { extraLineItems: [], couponId: null }
+  if (!isTrialEligible) return { extraLineItems: [] }
 
-  const [trialFeePriceId, couponId] = await Promise.all([
-    getTrialFeePrice(),
-    getTrialFeeCoupon(),
-  ])
+  const trialFeePriceId = await getTrialFeePrice()
 
   return {
     extraLineItems: [{ price: trialFeePriceId, quantity: 1 }],
-    couponId,
   }
 }
 

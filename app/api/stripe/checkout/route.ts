@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe, PRICE_IDS, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
-import { getTrialFeePrice, getTrialFeeCoupon } from '@/lib/stripe-trial-fee'
+import { getTrialFeePrice } from '@/lib/stripe-trial-fee'
 import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -112,15 +112,10 @@ export async function POST(req: NextRequest) {
     const isTrialEligible = Boolean(planConfig.trialDays) && !hasUsedTrial
 
     let trialFeeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
-    let trialFeeCouponId: string | undefined
 
     if (isTrialEligible) {
-      const [feePriceId, couponId] = await Promise.all([
-        getTrialFeePrice(),
-        getTrialFeeCoupon(),
-      ])
+      const feePriceId = await getTrialFeePrice()
       trialFeeLineItems = [{ price: feePriceId, quantity: 1 }]
-      trialFeeCouponId = couponId
     }
 
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
@@ -133,8 +128,6 @@ export async function POST(req: NextRequest) {
         ? { trial_period_days: planConfig.trialDays }
         : {}),
     }
-    const discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined =
-      trialFeeCouponId ? [{ coupon: trialFeeCouponId }] : undefined
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -148,7 +141,6 @@ export async function POST(req: NextRequest) {
         ...trialFeeLineItems,
       ],
       subscription_data: subscriptionData,
-      ...(discounts ? { discounts } : {}),
       success_url: resolvedSuccessUrl,
       cancel_url: resolvedCancelUrl,
       metadata: {

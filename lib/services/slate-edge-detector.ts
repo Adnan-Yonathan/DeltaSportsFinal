@@ -10,7 +10,6 @@
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
-import { fetchSbdOdds, mapSbdOddsToOddsGames, resolveBookIds } from '@/lib/api/sbd'
 import { fetchTheOddsApiOdds } from '@/lib/api/the-odds-api'
 import { fetchPolymarketOdds } from '@/lib/api/polymarket'
 import { fetchKalshiOdds } from '@/lib/api/kalshi'
@@ -92,7 +91,7 @@ type ProjectionBookKey =
   | 'polymarket'
   | 'kalshi'
 
-type ProjectionQuoteSource = 'sbd' | 'odds_api' | 'polymarket_api' | 'kalshi_api'
+type ProjectionQuoteSource = 'odds_api' | 'polymarket_api' | 'kalshi_api'
 
 type SpreadBookQuote = {
   homeLine?: number
@@ -1620,7 +1619,7 @@ const fetchProjectionSharpSportsbookOdds = async (
     return await fetchDirectOdds(PROJECTION_SHARP_SPORTSBOOKS)
   } catch (directError) {
     console.warn(
-      '[SLATE EDGE] Direct sharp sportsbook fetch failed; using odds-api-io fallback:',
+      '[SLATE EDGE] Direct sharp sportsbook fetch failed; using The Odds API fallback:',
       directError
     )
 
@@ -1641,7 +1640,7 @@ const fetchProjectionSharpSportsbookOdds = async (
 
     const fallbackGames = await fetchOdds(sportKey, projectionMarkets, {
       revalidateSeconds: 1800,
-      forceProvider: 'odds-api-io',
+      forceProvider: 'the-odds-api',
       bookmakers: [...PROJECTION_SHARP_SPORTSBOOKS],
       teamFilter: projectionTeamFilter,
       includePredictionMarkets: false,
@@ -1823,15 +1822,15 @@ const buildProjectionBookQuotes = (
     ProjectionBookKey,
     { game: OddsGame | null; source: ProjectionQuoteSource; token: string }
   > = {
-    fanduel: { game, source: 'sbd', token: 'fanduel' },
-    draftkings: { game, source: 'sbd', token: 'draftkings' },
-    betmgm: { game, source: 'sbd', token: 'betmgm' },
-    caesars: { game, source: 'sbd', token: 'caesars' },
-    betrivers: { game, source: 'sbd', token: 'betrivers' },
-    hardrockbet: { game, source: 'sbd', token: 'hardrockbet' },
-    fanatics: { game, source: 'sbd', token: 'fanatics' },
-    espnbet: { game, source: 'sbd', token: 'espnbet' },
-    fliff: { game, source: 'sbd', token: 'fliff' },
+    fanduel: { game, source: 'odds_api', token: 'fanduel' },
+    draftkings: { game, source: 'odds_api', token: 'draftkings' },
+    betmgm: { game, source: 'odds_api', token: 'betmgm' },
+    caesars: { game, source: 'odds_api', token: 'caesars' },
+    betrivers: { game, source: 'odds_api', token: 'betrivers' },
+    hardrockbet: { game, source: 'odds_api', token: 'hardrockbet' },
+    fanatics: { game, source: 'odds_api', token: 'fanatics' },
+    espnbet: { game, source: 'odds_api', token: 'espnbet' },
+    fliff: { game, source: 'odds_api', token: 'fliff' },
     pinnacle: { game: sourceGames.oddsApi, source: 'odds_api', token: 'pinnacle' },
     circa: { game: sourceGames.oddsApi, source: 'odds_api', token: 'circa' },
     novig: { game: sourceGames.oddsApi, source: 'odds_api', token: 'novig' },
@@ -1909,69 +1908,21 @@ export async function analyzeSlateEdges(
 
   console.log(`[SLATE EDGE] Analyzing ${sportLabel} slate...`)
 
-  // Fetch slate odds from SBD so sharp projections and edge math use one source.
+  // Fetch slate odds from The Odds API (sportsbooks) and merge prediction markets separately.
   let oddsGames: OddsGame[] = []
-  const sbdOddsLeague = ODDS_API_TO_SBD[sportKey]
-  if (sbdOddsLeague) {
-    const markets = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS]
-    const books = requestedBookmakers.length
-      ? resolveBookIds(requestedBookmakers, { fallbackToDefault: false })
-      : resolveBookIds()
-
-    const fetchSbdGames = async (bookIds?: string[]) => {
-      try {
-        const payload = await withTimeout(
-          fetchSbdOdds(sbdOddsLeague, { books: bookIds }),
-          12000,
-          null
-        )
-        if (!payload) {
-          console.warn(`[SLATE EDGE] Timed out fetching SBD odds for ${sbdOddsLeague}.`)
-          return []
-        }
-        return mapSbdOddsToOddsGames(sbdOddsLeague, payload, markets)
-      } catch (error) {
-        console.error(`[SLATE EDGE] Failed to fetch SBD odds for ${sbdOddsLeague}:`, error)
-        return []
-      }
-    }
-
-    oddsGames = await fetchSbdGames(books.length ? books : undefined)
-
-    // Retry per-book and merge when the aggregate feed is sparse.
-    if (oddsGames.length === 0 && books.length > 1) {
-      const merged = new Map<string, OddsGame>()
-      const bookResults = await Promise.all(books.map((book) => fetchSbdGames([book])))
-      for (const bookGames of bookResults) {
-        for (const game of bookGames) {
-          const key = buildMatchupKey(game.home_team, game.away_team)
-          const existing = merged.get(key)
-          if (existing) {
-            const byKey = new Map(
-              (existing.bookmakers ?? []).map((entry) => [entry.key, entry])
-            )
-            for (const entry of game.bookmakers ?? []) {
-              if (!byKey.has(entry.key)) byKey.set(entry.key, entry)
-            }
-            existing.bookmakers = Array.from(byKey.values())
-          } else {
-            merged.set(key, { ...game })
-          }
-        }
-      }
-      oddsGames = Array.from(merged.values())
-    }
-
-    if (oddsGames.length === 0 && requestedBookmakers.length === 0) {
-      const fallback = await fetchSbdGames(['sr:book:18149'])
-      if (fallback.length) oddsGames = fallback
-    }
-  } else {
-    oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
-      revalidateSeconds: 1800,
-      forceProvider: 'sportsbettingdime',
-      bookmakers: requestedBookmakers.length ? requestedBookmakers : undefined,
-    })
+  try {
+    oddsGames = await withTimeout(
+      fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
+        revalidateSeconds: 1800,
+        forceProvider: 'the-odds-api',
+        bookmakers: requestedBookmakers.length ? requestedBookmakers : undefined,
+      }),
+      12000,
+      []
+    )
+  } catch (error) {
+    console.error(`[SLATE EDGE] Failed to fetch The Odds API odds for ${sportKey}:`, error)
+    oddsGames = []
   }
 
   // Hard allowlist bookmaker filtering when a caller requests specific books

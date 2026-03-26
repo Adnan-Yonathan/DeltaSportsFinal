@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fetchOdds } from '@/lib/api/odds-api'
-import { resolveBookSlugs } from '@/lib/api/sbd'
+import { INSIDER_ODDS_SOURCE_ORDER, getOddsSource } from '@/lib/config/odds-sources'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 600
@@ -22,7 +22,10 @@ export async function GET(request: Request) {
       if (cachedBookmakers && now - cachedBookmakersAt < BOOKMAKER_CACHE_TTL_MS) {
         return NextResponse.json({ bookmakers: cachedBookmakers })
       }
-      const bookmakers = resolveBookSlugs().map((key) => ({ key, title: key }))
+      const bookmakers = INSIDER_ODDS_SOURCE_ORDER.map((key) => ({
+        key,
+        title: getOddsSource(key)?.label ?? key,
+      }))
       cachedBookmakers = bookmakers
       cachedBookmakersAt = now
       return NextResponse.json({ bookmakers })
@@ -33,11 +36,11 @@ export async function GET(request: Request) {
       ? booksParam.split(',').map(b => b.trim()).filter(Boolean)
       : undefined
 
-    // Fetch odds from SBD
+    // Fetch odds from The Odds API provider stack
     const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 900,
       bookmakers: selectedBooks,
-      forceProvider: 'sportsbettingdime',
+      forceProvider: 'the-odds-api',
     })
 
     // Get unique bookmakers from the response
@@ -63,3 +66,4 @@ export async function GET(request: Request) {
     )
   }
 }
+

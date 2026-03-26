@@ -129,7 +129,7 @@ export async function recordCurrentLines(sports: string[]): Promise<number> {
     try {
       const sbdGames = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
         revalidateSeconds: 600,
-        forceProvider: 'sportsbettingdime',
+        forceProvider: 'the-odds-api',
       })
       appendSnapshotsFromGames({
         sport,
@@ -143,7 +143,7 @@ export async function recordCurrentLines(sports: string[]): Promise<number> {
     try {
       const pinnacleGames = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
         revalidateSeconds: 600,
-        forceProvider: 'odds-api-io',
+        forceProvider: 'the-odds-api',
         bookmakers: ['pinnacle'],
       })
       appendSnapshotsFromGames({
@@ -453,4 +453,5 @@ export async function markOpeningLines(sport: string): Promise<number> {
   console.log(`Marked ${markedCount} games with opening lines`)
   return markedCount
 }
+
 

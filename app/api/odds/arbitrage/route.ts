@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     // Fetch odds with all markets
     const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 900,
-      forceProvider: 'sportsbettingdime',
+      forceProvider: 'the-odds-api',
     })
 
     // Find arbitrage opportunities
@@ -51,3 +51,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

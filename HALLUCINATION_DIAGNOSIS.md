@@ -202,7 +202,7 @@ grep -E "(ODDS_API_KEY|OPENAI_API_KEY)" .env .env.local
 
 **Test Odds-API.io:**
 ```bash
-curl "https://api.odds-api.io/v3/sports"
+curl "https://api.the-odds-api.com/v4/sports"
 ```
 
 **Expected:** JSON response with current NBA games and odds

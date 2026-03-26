@@ -1798,7 +1798,7 @@ const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
         const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
           live: false,
           revalidateSeconds: 600,
-          forceProvider: 'sportsbettingdime',
+          forceProvider: 'the-odds-api',
         })
         cache.set(sportKey, games)
       } catch (error) {
@@ -2460,3 +2460,4 @@ export const evaluateWhaleRespect = async (
     priceCents: currentPrice,
   }
 }
+

@@ -29,7 +29,7 @@ export async function GET() {
       withTimeout(
         fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
           live: false,
-          forceProvider: 'sportsbettingdime',
+          forceProvider: 'the-odds-api',
         }),
         4000
       )
@@ -42,3 +42,4 @@ export async function GET() {
     durationMs: Date.now() - started,
   })
 }
+

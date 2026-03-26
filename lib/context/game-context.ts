@@ -282,7 +282,7 @@ async function tryLoadLiveMarket(
   try {
     const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 600,
-      forceProvider: 'sportsbettingdime',
+      forceProvider: 'the-odds-api',
     })
     const targetGame = oddsData.find((game) => {
       const home = normalizeTeamName(game.home_team || '')
@@ -506,3 +506,4 @@ export async function buildGameContext({
     notes,
   }
 }
+

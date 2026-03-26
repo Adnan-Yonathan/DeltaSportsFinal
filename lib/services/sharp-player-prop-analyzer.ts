@@ -6,7 +6,7 @@ import {
   fetchPropLiquiditySignals,
   mapLiquiditySignalsToPlayerPropTrades,
 } from './prop-liquidity-detector'
-import { fetchSbdGamePropsList, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
+import { fetchTheOddsApiPlayerProps, getSportKey as getTheOddsApiSportKey } from '@/lib/api/the-odds-api'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { getUsMarketDayKey, resolveEventDayKey } from '@/lib/utils/upcoming-event-filter'
 
@@ -99,20 +99,24 @@ const DEFAULT_WEIGHTS: CompositeScoreWeights = {
   volume: 0.25,         // How many bets on this prop
 }
 
-// Prop type normalization for SBD API matching
-const PROP_TYPE_TO_SBD: Record<string, string[]> = {
-  points: ['points', 'pts'],
-  rebounds: ['rebounds', 'reb'],
-  assists: ['assists', 'ast'],
-  threes: ['3-pointers', 'threes', '3pt'],
-  blocks: ['blocks', 'blk'],
-  steals: ['steals', 'stl'],
-  passing_yards: ['passing yards', 'pass yds'],
-  passing_tds: ['passing touchdowns', 'pass tds'],
-  rushing_yards: ['rushing yards', 'rush yds'],
-  rushing_tds: ['rushing touchdowns', 'rush tds'],
-  receiving_yards: ['receiving yards', 'rec yds'],
-  receptions: ['receptions', 'rec'],
+const PROP_TYPE_BY_ODDS_MARKET: Record<string, string> = {
+  player_points: 'points',
+  player_rebounds: 'rebounds',
+  player_assists: 'assists',
+  player_threes: 'threes',
+  player_blocks: 'blocks',
+  player_steals: 'steals',
+  player_pass_yds: 'passing_yards',
+  player_pass_tds: 'passing_tds',
+  player_rush_yds: 'rushing_yards',
+  player_rush_tds: 'rushing_tds',
+  player_reception_yds: 'receiving_yards',
+  player_receptions: 'receptions',
+  player_hits: 'hits',
+  player_total_bases: 'total_bases',
+  player_rbis: 'rbis',
+  player_runs_scored: 'runs',
+  player_shots_on_goal: 'shots_on_goal',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -290,125 +294,118 @@ const isPinnacleBook = (book: any) => {
   return raw.includes("pinnacle")
 }
 
+const isPredictionMarketBookFromOddsApi = (book: { key?: string | null; title?: string | null }) => {
+  const normalized = `${book?.key ?? ''} ${book?.title ?? ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  return normalized.includes('kalshi') || normalized.includes('polymarket')
+}
+
 const fetchSportsbookPlayerProps = async (
   sportKey: string
 ): Promise<Map<string, SportsbookPropOdds[]>> => {
-  const league = resolveSbdLeague(sportKey)
-  if (!league) return new Map()
+  const oddsSportKey = getTheOddsApiSportKey(sportKey)
+  if (!oddsSportKey) return new Map()
+
+  const sportMarkets: Record<string, string[]> = {
+    basketball_nba: ['player_points', 'player_rebounds', 'player_assists', 'player_threes'],
+    americanfootball_nfl: [
+      'player_pass_tds',
+      'player_pass_yds',
+      'player_rush_yds',
+      'player_rush_tds',
+      'player_receptions',
+      'player_reception_yds',
+    ],
+    americanfootball_ncaaf: [
+      'player_pass_tds',
+      'player_pass_yds',
+      'player_rush_yds',
+      'player_rush_tds',
+      'player_receptions',
+      'player_reception_yds',
+    ],
+    baseball_mlb: ['player_hits', 'player_total_bases', 'player_rbis', 'player_runs_scored'],
+    icehockey_nhl: ['player_points', 'player_shots_on_goal'],
+  }
+
+  const markets = sportMarkets[oddsSportKey] ?? []
+  if (!markets.length) return new Map()
 
   try {
-    // Use game props API which has all prop types (rushing, receiving, etc.)
-    const data = await fetchSbdGamePropsList(league, {
-      init: { next: { revalidate: 60 } },
+    const events = await fetchTheOddsApiPlayerProps(oddsSportKey, {
+      markets: markets.join(','),
+      regions: 'us,us2,eu',
+      oddsFormat: 'american',
+      includeBetLimits: false,
     })
-
     const result = new Map<string, SportsbookPropOdds[]>()
+    const byPlayer = new Map<string, Map<string, SportsbookPropOdds>>()
 
-    if (!Array.isArray(data)) return result
+    for (const event of events ?? []) {
+      for (const book of event.bookmakers ?? []) {
+        if (isPredictionMarketBookFromOddsApi(book)) continue
+        const pinnacleBook = isPinnacleBook(book)
+        for (const market of book.markets ?? []) {
+          const propType = PROP_TYPE_BY_ODDS_MARKET[String(market?.key ?? '')]
+          if (!propType) continue
 
-    for (const entry of data) {
-      // Game props API has player_name directly (in "Last, First" format)
-      const playerName = entry?.player_name || entry?.player?.name
-      if (!playerName || typeof playerName !== 'string') continue
+          for (const outcome of market.outcomes ?? []) {
+            const sideRaw = String(outcome?.name ?? '').toLowerCase()
+            const side: 'Over' | 'Under' | null =
+              sideRaw === 'over' ? 'Over' : sideRaw === 'under' ? 'Under' : null
+            if (!side) continue
 
-      // Normalize "Last, First" to "First Last"
-      const normalizedPlayer = normalizePlayerName(
-        playerName.includes(',')
-          ? playerName.split(',').reverse().map(s => s.trim()).join(' ')
-          : playerName
-      )
+            const playerNameRaw = outcome?.description
+            if (typeof playerNameRaw !== 'string' || !playerNameRaw.trim()) continue
+            const normalizedPlayer = normalizePlayerName(playerNameRaw)
+            const line = Number(outcome?.point)
+            const odds = Number(outcome?.price)
+            if (!Number.isFinite(line) || !Number.isFinite(odds)) continue
 
-      // Market name is in 'name' field, e.g., "total rushing yards"
-      const marketName = entry?.name
-      if (typeof marketName !== 'string') continue
-
-      const normalizedMarketName = marketName.toLowerCase()
-      let propType: string | null = null
-
-      for (const [key, aliases] of Object.entries(PROP_TYPE_TO_SBD)) {
-        if (aliases.some((alias) => normalizedMarketName.includes(alias))) {
-          propType = key
-          break
-        }
-      }
-
-      if (!propType) continue
-
-      const sportsbooks = entry?.sportsbooks
-      if (!Array.isArray(sportsbooks)) continue
-
-      // Find BEST odds across sportsbooks (highest = best for bettor)
-      let bestOverOdds: number | null = null
-      let bestUnderOdds: number | null = null
-      let pinnacleOverOdds: number | null = null
-      let pinnacleUnderOdds: number | null = null
-      const overOddsList: number[] = []
-      const underOddsList: number[] = []
-      let line: number | null = null
-
-      for (const book of sportsbooks) {
-        const odds = book?.odds
-        if (!odds) continue
-
-        // Game props API has odds in a flat structure
-        const overOddsStr = odds.over_american
-        const underOddsStr = odds.under_american
-        const overPointsStr = odds.over_points
-        const underPointsStr = odds.under_points
-
-        const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
-                        typeof overOddsStr === 'number' ? overOddsStr : null
-        const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
-                         typeof underOddsStr === 'number' ? underOddsStr : null
-        const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
-                          typeof overPointsStr === 'number' ? overPointsStr : null
-        const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
-                           typeof underPointsStr === 'number' ? underPointsStr : null
-
-        // Use either over or under points for the line
-        const bookLine = overPoints ?? underPoints
-        if (bookLine != null && !isNaN(bookLine)) {
-          line = bookLine
-        }
-
-        // Track best odds (higher American odds = better for bettor)
-        if (overOdds != null && !isNaN(overOdds)) {
-          overOddsList.push(overOdds)
-          if (isPinnacleBook(book)) {
-            pinnacleOverOdds = overOdds
-          }
-          if (bestOverOdds === null || overOdds > bestOverOdds) {
-            bestOverOdds = overOdds
-          }
-        }
-        if (underOdds != null && !isNaN(underOdds)) {
-          underOddsList.push(underOdds)
-          if (isPinnacleBook(book)) {
-            pinnacleUnderOdds = underOdds
-          }
-          if (bestUnderOdds === null || underOdds > bestUnderOdds) {
-            bestUnderOdds = underOdds
+            if (!byPlayer.has(normalizedPlayer)) {
+              byPlayer.set(normalizedPlayer, new Map())
+            }
+            const playerMap = byPlayer.get(normalizedPlayer)!
+            const key = `${propType}:${line.toFixed(1)}`
+            if (!playerMap.has(key)) {
+              playerMap.set(key, {
+                playerName: normalizedPlayer,
+                propType,
+                line,
+                bestOverOdds: null,
+                bestUnderOdds: null,
+                pinnacleOverOdds: null,
+                pinnacleUnderOdds: null,
+                overOdds: [],
+                underOdds: [],
+              })
+            }
+            const bucket = playerMap.get(key)!
+            if (side === 'Over') {
+              bucket.overOdds.push(odds)
+              if (bucket.bestOverOdds == null || odds > bucket.bestOverOdds) {
+                bucket.bestOverOdds = odds
+              }
+              if (pinnacleBook) {
+                bucket.pinnacleOverOdds = odds
+              }
+            } else {
+              bucket.underOdds.push(odds)
+              if (bucket.bestUnderOdds == null || odds > bucket.bestUnderOdds) {
+                bucket.bestUnderOdds = odds
+              }
+              if (pinnacleBook) {
+                bucket.pinnacleUnderOdds = odds
+              }
+            }
           }
         }
       }
+    }
 
-      if (line != null && (bestOverOdds !== null || bestUnderOdds !== null)) {
-        // Add to player's odds list
-        if (!result.has(normalizedPlayer)) {
-          result.set(normalizedPlayer, [])
-        }
-        result.get(normalizedPlayer)!.push({
-          playerName: normalizedPlayer,
-          propType,
-          line,
-          bestOverOdds,
-          bestUnderOdds,
-          pinnacleOverOdds,
-          pinnacleUnderOdds,
-          overOdds: overOddsList,
-          underOdds: underOddsList,
-        })
-      }
+    for (const [player, marketsByLine] of byPlayer.entries()) {
+      result.set(player, Array.from(marketsByLine.values()))
     }
 
     return result

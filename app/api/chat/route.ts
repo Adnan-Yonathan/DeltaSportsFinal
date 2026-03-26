@@ -175,7 +175,7 @@ async function executeGuideTool(
         const sportKey = sportKeyMap[sport] || 'basketball_nba'
 
         const games = await fetchOdds(sportKey, ['spreads', 'totals'], {
-          forceProvider: 'sportsbettingdime',
+          forceProvider: 'the-odds-api',
         })
 
         if (!games || games.length === 0) {
@@ -241,7 +241,7 @@ async function executeGuideTool(
         const sportKey = sportKeyMap[sport] || 'basketball_nba'
 
         const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
-          forceProvider: 'sportsbettingdime',
+          forceProvider: 'the-odds-api',
         })
 
         // Find the game matching the team
@@ -495,3 +495,4 @@ Check out our tools to help:
     )
   }
 }
+

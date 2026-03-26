@@ -231,13 +231,13 @@ const buildPregameSpreadContext = async (
       live: false,
       teamFilter: teamFilter.length ? teamFilter : [homeTeam, awayTeam],
       revalidateSeconds: 600,
-      forceProvider: 'sportsbettingdime',
+      forceProvider: 'the-odds-api',
     })
     if (!oddsGames.length) {
       oddsGames = await fetchOdds(sportKey, ['spreads', 'totals'], {
         live: false,
         revalidateSeconds: 600,
-        forceProvider: 'sportsbettingdime',
+        forceProvider: 'the-odds-api',
       })
     }
     if (!oddsGames.length) return null
@@ -1483,3 +1483,4 @@ export function formatToolResultsForLLM(results: ToolResult[]): Array<{ role: 't
     content: r.error ? JSON.stringify({ error: r.error }) : JSON.stringify(r.result),
   }))
 }
+

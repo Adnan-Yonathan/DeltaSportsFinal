@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     const canonicalSport = resolveSportKey(sport) as CanonicalSportKey | undefined
     let games = await fetchOdds(sport, ['h2h','spreads','totals'], {
       live,
-      forceProvider: 'sportsbettingdime',
+      forceProvider: 'the-odds-api',
     })
     if (!games.length) {
       const league = resolveSbdLeague(sport)
@@ -72,3 +72,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error?.message || 'Internal error' }, { status: 500 })
   }
 }
+

@@ -159,7 +159,7 @@ Copy `.env.example` to `.env.local` and configure:
 
 | Variable | Purpose |
 | --- | --- |
-| `ODDS_PROVIDER` | Odds provider (default: `odds-api-io`) |
+| `ODDS_PROVIDER` | Odds provider (default: `the-odds-api`) |
 | `ODDS_BOOKMAKERS` | Comma-separated bookmaker list |
 | `ODDS_REGIONS` | Regional bookmaker filtering |
 | `ELEVENLABS_API_KEY` | Voice transcription (required for voice input) |
@@ -356,3 +356,4 @@ Proprietary - All rights reserved
 ## Support
 
 For issues, questions, or feature requests, please contact the development team.
+

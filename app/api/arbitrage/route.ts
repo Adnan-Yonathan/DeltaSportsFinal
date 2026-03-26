@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 600,
-      forceProvider: 'sportsbettingdime',
+      forceProvider: 'the-odds-api',
     })
     if (!games?.length) {
       return NextResponse.json({ sport, opportunities: [], note: 'No games available for arbitrage scan' })
@@ -30,3 +30,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error?.message || 'Internal error' }, { status: 500 })
   }
 }
+

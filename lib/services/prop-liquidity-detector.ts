@@ -1,6 +1,5 @@
 import { fetchOdds } from '@/lib/api/odds-api'
 import { fetchTheOddsApiPlayerProps } from '@/lib/api/the-odds-api'
-import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
 import { resolveOddsSourceKey } from '@/lib/config/odds-sources'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
@@ -1312,6 +1311,13 @@ const parseOptionalNumber = (value: unknown): number | null => {
   return null
 }
 
+const isPredictionMarketBookFromOddsApi = (book: { key?: string | null; title?: string | null }) => {
+  const normalized = `${book?.key ?? ''} ${book?.title ?? ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  return normalized.includes('kalshi') || normalized.includes('polymarket')
+}
+
 const oddsToPriceCents = (odds: number): number | null => {
   if (!Number.isFinite(odds)) return null
   const implied = oddsToImpliedProbability(odds)
@@ -2193,7 +2199,7 @@ const findBestOdds = (
   let bestLineDiff = Number.POSITIVE_INFINITY
 
   for (const book of game.bookmakers || []) {
-    if (book.key === 'kalshi' || book.key === 'polymarket') continue
+    if (isPredictionMarketBookFromOddsApi(book)) continue
     const market = book.markets?.find((m) => m.key === marketKey)
     if (!market) continue
     for (const outcome of market.outcomes || []) {
@@ -2283,7 +2289,7 @@ const fetchOddsForMarket = async (
   const games = await fetchOdds(sportKey, [marketKey], {
     revalidateSeconds: 600,
     teamFilter,
-    forceProvider: 'sportsbettingdime',
+    forceProvider: 'the-odds-api',
   })
 
   oddsCache.set(cacheKey, { fetchedAt: now, games })
@@ -2304,7 +2310,7 @@ const resolveSportsbookNoVig = async (opts: {
   if (!game) return { noVigProb: null, bestOdds: null }
 
   const bookmakers =
-    game.bookmakers?.filter((book) => book.key !== 'kalshi' && book.key !== 'polymarket') ?? []
+    game.bookmakers?.filter((book) => !isPredictionMarketBookFromOddsApi(book)) ?? []
   const consensus = buildNoVigConsensusBySelection(bookmakers, marketKey)
   const selectionKey = resolveSelectionKeyForTeam(marketKey, selection, consensus)
   if (!selectionKey) {
@@ -2321,8 +2327,6 @@ const resolveSportsbookNoVig = async (opts: {
 }
 
 const SHARP_LINE_SHOP_BOOKMAKERS = [
-  'polymarket',
-  'kalshi',
   'novig',
   'fanduel',
   'circa',
@@ -2489,9 +2493,11 @@ const upsertBookOdds = (
   }
 }
 
-const buildSportsbookIndexFromOddsApi = async (sportKey: string) => {
+const buildSportsbookIndexFromOddsApi = async (
+  sportKey: string
+): Promise<Map<string, SportsbookPropLine[]>> => {
   const markets = SHARP_LINE_SHOP_MARKETS[sportKey]
-  if (!markets?.length) return null
+  if (!markets?.length) return new Map<string, SportsbookPropLine[]>()
 
   const events = await fetchTheOddsApiPlayerProps(sportKey, {
     markets: markets.join(','),
@@ -2504,6 +2510,7 @@ const buildSportsbookIndexFromOddsApi = async (sportKey: string) => {
   const result = new Map<string, SportsbookPropLine[]>()
   for (const event of events ?? []) {
     for (const bookmaker of event.bookmakers ?? []) {
+      if (isPredictionMarketBookFromOddsApi(bookmaker)) continue
       for (const market of bookmaker.markets ?? []) {
         const marketKey = String(market?.key ?? '')
         const propType = resolvePropTypeFromMarketKey(marketKey)
@@ -2578,110 +2585,9 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
 
   const loadPromise = (async () => {
     try {
-      try {
-        const oddsApiResult = await buildSportsbookIndexFromOddsApi(sportKey)
-        if (oddsApiResult && oddsApiResult.size > 0) {
-          sportsbookCache.set(sportKey, { fetchedAt: now, data: oddsApiResult })
-          return oddsApiResult
-        }
-      } catch (oddsApiError) {
-        console.warn('[prop-liquidity-detector] Odds API line-shop index failed, falling back to SBD:', oddsApiError)
-      }
-
-      const league = resolveSbdLeague(sportKey)
-      if (!league) return new Map<string, SportsbookPropLine[]>()
-
-      const data = await fetchSbdGamePropsList(league)
-      const result = new Map<string, SportsbookPropLine[]>()
-
-      if (!Array.isArray(data)) {
-        return result
-      }
-
-      for (const entry of data) {
-        const playerName = entry?.player_name || entry?.player?.name
-        if (!playerName || typeof playerName !== 'string') continue
-        const normalizedPlayer = normalizePlayerName(
-          playerName.includes(',')
-            ? playerName.split(',').reverse().map((part: string) => part.trim()).join(' ')
-            : playerName
-        )
-
-        const marketName = entry?.name
-        if (typeof marketName !== 'string') continue
-        const normalizedMarketName = marketName.toLowerCase()
-
-        let propType: string | null = null
-        const mappings = PROP_KEYWORDS[sportKey] ?? []
-        const hit = mappings.find((mapping) =>
-          mapping.patterns.some((pattern) => normalizedMarketName.includes(pattern))
-        )
-        if (hit) {
-          propType = hit.key
-        }
-        if (!propType) continue
-
-        const sportsbooks = entry?.sportsbooks
-        if (!Array.isArray(sportsbooks)) continue
-
-        for (const book of sportsbooks) {
-          const odds = book?.odds
-          if (!odds) continue
-
-          const overOddsStr = odds.over_american
-          const underOddsStr = odds.under_american
-          const overPointsStr = odds.over_points
-          const underPointsStr = odds.under_points
-
-          const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
-            typeof overOddsStr === 'number' ? overOddsStr : null
-          const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
-            typeof underOddsStr === 'number' ? underOddsStr : null
-          const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
-            typeof overPointsStr === 'number' ? overPointsStr : null
-          const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
-            typeof underPointsStr === 'number' ? underPointsStr : null
-
-          const line = overPoints ?? underPoints
-          if (line == null || Number.isNaN(line)) continue
-
-          if (!result.has(normalizedPlayer)) {
-            result.set(normalizedPlayer, [])
-          }
-
-          let bucket = result.get(normalizedPlayer)!.find(
-            (item) => item.propType === propType && item.line === line
-          )
-
-          if (!bucket) {
-            bucket = createSportsbookPropLine(normalizedPlayer, propType, line)
-            result.get(normalizedPlayer)!.push(bucket)
-          }
-
-          const bookTitle =
-            typeof book?.name === 'string'
-              ? book.name
-              : typeof book?.title === 'string'
-                ? book.title
-                : book?.key
-                  ? String(book.key)
-                  : null
-
-          upsertBookOdds(
-            bucket,
-            {
-              key: typeof book?.key === 'string' ? book.key : null,
-              title: bookTitle,
-              name: bookTitle,
-            },
-            overOdds,
-            underOdds
-          )
-        }
-      }
-
-      sportsbookCache.set(sportKey, { fetchedAt: now, data: result })
-      return result
+      const oddsApiResult = await buildSportsbookIndexFromOddsApi(sportKey)
+      sportsbookCache.set(sportKey, { fetchedAt: now, data: oddsApiResult })
+      return oddsApiResult
     } catch (error) {
       console.warn('[prop-liquidity-detector] Failed to fetch sportsbook prop index:', error)
       const empty = new Map<string, SportsbookPropLine[]>()
@@ -3310,4 +3216,5 @@ export const mapLiquiditySignalsToSharpTrades = (signals: PropLiquiditySignal[])
     ultraSharpReasons: signal.reasons,
     crossMarketEvPercent: signal.edgePercent ?? null,
   }))
+
 

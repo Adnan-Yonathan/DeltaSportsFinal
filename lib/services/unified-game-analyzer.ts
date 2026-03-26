@@ -177,7 +177,7 @@ export async function analyzeGame(opts: {
       withTimeout(
         fetchOdds(sportKey, ['spreads', 'totals', 'h2h'], {
           teamFilter: [homeTeam, awayTeam],
-          forceProvider: 'sportsbettingdime',
+          forceProvider: 'the-odds-api',
         }),
         8000,
         [] as any[]
@@ -592,3 +592,4 @@ function formatOdds(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return 'n/a'
   return value > 0 ? `+${value}` : `${value}`
 }
+

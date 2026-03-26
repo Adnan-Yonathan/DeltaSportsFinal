@@ -141,7 +141,7 @@ export async function findPinnacleEVOpportunities(
       const games = await fetchOdds(sport, markets, {
         bookmakers: Array.from(allBooks).join(','),
         live: false,
-        forceProvider: 'sportsbettingdime',
+        forceProvider: 'the-odds-api',
         revalidateSeconds: 1800,
       })
 
@@ -405,3 +405,4 @@ export function formatPinnacleEVOpportunity(opp: PinnacleEVOpportunity): string 
     `Edge: ${opp.edge.toFixed(1)}%`,
   ].join('\n')
 }
+

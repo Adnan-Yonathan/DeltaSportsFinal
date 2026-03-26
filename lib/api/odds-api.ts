@@ -29,11 +29,7 @@ import { fetchKalshiOdds } from '@/lib/api/kalshi'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { fetchTheOddsApiOdds, getSportKey as getTheOddsApiSportKey } from '@/lib/api/the-odds-api'
 
-const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
-const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
-
 type NextFetchRequestInit = RequestInit & { next?: { revalidate?: number } }
-type QueryValue = string | number | boolean | Array<string | number | boolean> | undefined
 
 export { OddsAPIError } from '@/lib/api/odds-errors'
 
@@ -72,7 +68,7 @@ const FILTER_ALTERNATE_SPREADS = false
 const MIN_STANDARD_SPREAD_ODDS = Number.NEGATIVE_INFINITY
 const MAX_STANDARD_SPREAD_ODDS = Number.POSITIVE_INFINITY
 
-// ============ Odds-API.io Provider (inline) ============
+// ============ Internal Odds Normalization ============
 const SPORT_MAP: Record<string, { sport: string; league: string }> = {
   basketball_nba: { sport: 'basketball', league: 'usa-nba' },
   basketball_ncaab: { sport: 'basketball', league: 'usa-ncaab' },
@@ -164,7 +160,7 @@ function pickBookmakersParam(): string | undefined {
 function getDefaultBookmakers(): string | undefined {
   const env = pickBookmakersParam()
   if (env) return env
-  // Safe fallback set accepted by odds-api.io
+  // Safe fallback set across supported providers
   return ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365'].join(',')
 }
 
@@ -265,18 +261,6 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-const formatQueryValue = (value: QueryValue): string | undefined => {
-  if (value === undefined) return undefined
-  if (Array.isArray(value)) {
-    const filtered = value
-      .map((entry) => (typeof entry === 'boolean' ? (entry ? 'true' : 'false') : String(entry)))
-      .filter(Boolean)
-    return filtered.length ? filtered.join(',') : undefined
-  }
-  if (typeof value === 'boolean') return value ? 'true' : 'false'
-  return String(value)
-}
-
 const buildFetchInit = (opts?: { revalidateSeconds?: number; live?: boolean }): NextFetchRequestInit | undefined => {
   if (!opts) return undefined
   if (opts.live) return { cache: 'no-store' }
@@ -284,53 +268,6 @@ const buildFetchInit = (opts?: { revalidateSeconds?: number; live?: boolean }): 
     return { next: { revalidate: opts.revalidateSeconds } }
   }
   return undefined
-}
-
-interface OddsIoRequestOptions {
-  params?: Record<string, QueryValue>
-  init?: NextFetchRequestInit
-  requireAuth?: boolean
-}
-
-async function oddsIoFetch<T>(
-  path: string,
-  options: OddsIoRequestOptions = {}
-): Promise<{ data: T; headers: Headers }> {
-  const { params = {}, init, requireAuth = true } = options
-  const base = path.startsWith('http') ? path : `${ODDS_IO_BASE}${path}`
-  const url = new URL(base)
-
-  if (requireAuth) {
-    url.searchParams.set('apiKey', getOddsIOKey())
-  }
-
-  for (const [key, rawValue] of Object.entries(params)) {
-    const value = formatQueryValue(rawValue)
-    if (value != null && value !== '') {
-      url.searchParams.set(key, value)
-    }
-  }
-
-  const res = await fetch(url.toString(), init)
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    const error = new OddsAPIError(`Odds-API.io error ${res.status}: ${body || res.statusText}`, res.status)
-
-    // Log rate limit warnings
-    if (error.isRateLimited) {
-      console.error('⚠️ [ODDS API] RATE LIMIT HIT:', {
-        status: res.status,
-        message: body || res.statusText,
-        endpoint: path,
-        remainingCalls: res.headers.get('x-ratelimit-remaining'),
-        resetTime: res.headers.get('x-ratelimit-reset'),
-      })
-    }
-
-    throw error
-  }
-
-  return { data: (await res.json()) as T, headers: res.headers }
 }
 
 function toAmerican(value?: string | number | null): number | undefined {
@@ -1698,31 +1635,28 @@ export interface FetchOddsOptions {
   revalidateSeconds?: number
   teamFilter?: string[] // Filter events to only these team names (case-insensitive partial match)
   bookmakers?: string | string[] | null // Optional override of bookmaker filter
-  forceProvider?: 'the-odds-api' | 'odds-api-io' | 'sportsbettingdime'
+  forceProvider?: 'the-odds-api'
   includePredictionMarkets?: boolean
 }
 
 const resolveOddsProvider = () => {
   const raw = (process.env.ODDS_PROVIDER || '').trim().toLowerCase()
 
-  // If explicit provider set, use it
+  // Normalize historical provider names to The Odds API.
   if (raw) {
     if (raw === 'the-odds-api' || raw === 'theoddsapi') {
       return 'the-odds-api'
     }
     if (raw === 'sbd' || raw === 'sportsbettingdime' || raw === 'sports-betting-dime') {
-      return 'sportsbettingdime'
+      return 'the-odds-api'
     }
-    if (raw.includes('odds-api')) return 'odds-api-io'
-    return raw
-  }
-
-  // Default: prefer The Odds API v4 if key is available
-  if (process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY) {
+    if (raw === 'oddsapiio' || raw.includes('odds-api')) {
+      return 'the-odds-api'
+    }
     return 'the-odds-api'
   }
 
-  return 'sportsbettingdime'
+  return 'the-odds-api'
 }
 
 async function fetchOddsSbd(
@@ -1957,105 +1891,30 @@ export async function fetchOdds(
     return attachPredictionMarketOdds(games, sport, markets, options)
   }
 
-  const resolvedProvider = resolveOddsProvider()
-  let provider = options.forceProvider ?? resolvedProvider
-  const hasTheOddsApiKey = Boolean(process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY)
-  if (provider === 'the-odds-api' && !hasTheOddsApiKey) {
-    console.warn('[ODDS] The Odds API key missing; falling back to default provider.')
-    provider = resolvedProvider
+  const provider = options.forceProvider ?? resolveOddsProvider()
+  if (provider !== 'the-odds-api') {
+    console.warn(`[ODDS] Unsupported provider "${provider}", forcing the-odds-api`)
   }
 
-  // Primary: The Odds API v4 (50+ bookmakers)
-    if (provider === 'the-odds-api') {
-      const games = await fetchOddsTheOddsApi(sport, markets, options)
-      if (games.length) {
-        const result = await maybeAttachPredictionMarkets(games)
-        return await cacheResult(result)
-      }
-      // Fallback to odds-api-io if The Odds API returns no data
-      console.warn('[ODDS] The Odds API v4 returned no games, trying odds-api-io fallback')
-      try {
-        const fallback = await fetchOddsIO(sport, markets, options)
-        if (fallback.length) {
-          const result = await maybeAttachPredictionMarkets(fallback)
-          return await cacheResult(result)
-        }
-      } catch (error) {
-        console.warn('[ODDS] Odds-api-io fallback failed:', error)
-      }
-      // Final fallback to SBD
-      const sbdFallback = await fetchOddsSbd(sport, markets, options)
-      const result = await maybeAttachPredictionMarkets(sbdFallback)
-      return await cacheResult(result)
-    }
-
-  // Legacy: odds-api-io provider
-    if (provider === 'odds-api-io') {
-      const games = await fetchOddsIO(sport, markets, options)
-      const result = await maybeAttachPredictionMarkets(games)
-      return await cacheResult(result)
-    }
-
-  // Legacy: SportsBettingDime provider
-    if (provider === 'sportsbettingdime') {
-      const games = await fetchOddsSbd(sport, markets, options)
-      if (!games.length && process.env.ODDS_API_KEY) {
-        try {
-          const fallback = await fetchOddsIO(sport, markets, options)
-          if (fallback.length) {
-            const result = await maybeAttachPredictionMarkets(fallback)
-            return await cacheResult(result)
-          }
-        } catch (error) {
-          console.warn('[ODDS] SBD fallback to odds-api-io failed:', error)
-        }
-      }
-      const result = await maybeAttachPredictionMarkets(games)
-      return await cacheResult(result)
-    }
-
-  // Default fallback chain: The Odds API v4 -> odds-api-io -> SBD
-    if (process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY) {
-      try {
-        const games = await fetchOddsTheOddsApi(sport, markets, options)
-        if (games.length) {
-          const result = await maybeAttachPredictionMarkets(games)
-          return await cacheResult(result)
-        }
-      } catch (error) {
-        console.warn('[ODDS] The Odds API v4 failed:', error)
-      }
-
-      try {
-        const games = await fetchOddsIO(sport, markets, options)
-        if (games.length) {
-          const result = await maybeAttachPredictionMarkets(games)
-          return await cacheResult(result)
-        }
-      } catch (error) {
-        console.warn('[ODDS] Odds-api-io provider failed:', error)
-      }
-    }
-
-    const fallback = await fetchOddsSbd(sport, markets, options)
-    const result = await maybeAttachPredictionMarkets(fallback)
-    return await cacheResult(result)
-  }
+  const games = await fetchOddsTheOddsApi(sport, markets, options)
+  const result = await maybeAttachPredictionMarkets(games)
+  return await cacheResult(result)
+}
 
 /**
- * Fetch player props via odds-api.io player props endpoint
+ * Fetch player props via current provider stack
  */
 export async function fetchPlayerProps(
   sportKey: string,
   markets?: string[] | null,
   options: { teamFilter?: string[]; playerFilter?: string[] } = {}
 ): Promise<EventResponse[]> {
-  console.warn('[ODDS] fetchPlayerProps is not supported with SportsBettingDime provider')
+  console.warn('[ODDS] fetchPlayerProps is not supported in the unified odds provider path')
   return []
 }
 
 /**
- * Fetch available sports (provider-aware; Odds-API.io preferred)
+ * Fetch available sports (provider-aware)
  */
 export async function fetchSports(): Promise<any[]> {
   return listSports()
@@ -2182,12 +2041,6 @@ export function getBestOdds(game: OddsGame, marketKey: string): Map<string, {
 
 // (duplicate SPORT_MAP removed; single definition kept above)
 
-function getOddsIOKey(): string {
-  const key = process.env.ODDS_API_KEY as string | undefined
-  if (!key) throw new OddsAPIError('ODDS_API_KEY is not configured')
-  return key
-}
-
 export async function fetchEventsIO(
   sportKey: string,
   opts: { status?: 'pending' | 'live'; tz?: string; day?: 'today' | 'tomorrow' } = {}
@@ -2228,3 +2081,4 @@ export async function fetchEventsIO(
     status: String(ev.status || requestedStatus),
   }))
 }
+

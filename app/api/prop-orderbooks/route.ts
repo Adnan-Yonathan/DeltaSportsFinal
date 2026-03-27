@@ -133,8 +133,10 @@ export async function GET(req: NextRequest) {
       dateWindow,
       todayKey,
     })
+    const canUsePersistedResponse =
+      Boolean(persistedFallback) &&
+      (sport === 'all' || persistedFallback?.source === 'persistent')
     const liveItems: PropOrderbookItem[] =
-      persistedFallback?.items ??
       (() => {
         const filteredByDate = filterPropOrderbooksItemsByDateWindow(
           snapshot.items,
@@ -148,7 +150,10 @@ export async function GET(req: NextRequest) {
           .filter((item) => item.sportKey === sport)
           .slice(0, normalizedLimit)
       })()
-    const responseItems = persistedFallback?.items ?? liveItems
+    const responseItems =
+      canUsePersistedResponse && persistedFallback
+        ? persistedFallback.items
+        : liveItems
 
     const diagnostics = resolveSnapshotDiagnostics(responseItems)
 
@@ -162,7 +167,7 @@ export async function GET(req: NextRequest) {
         sourceCounts: diagnostics.sourceCounts,
         cache: {
           forcedRefresh: forceRefresh,
-          source: persistedFallback
+          source: canUsePersistedResponse && persistedFallback
             ? persistedFallback.source
             : mode === 'fast'
               ? canUsePersistentCache
@@ -171,8 +176,16 @@ export async function GET(req: NextRequest) {
               : canUsePersistentCache
                 ? 'live_computed_persisted_full'
                 : 'live_computed_full',
-          fetchedAt: persistedFallback?.fetchedAt ?? null,
-          cacheAgeMs: persistedFallback?.cacheAgeMs ?? null,
+          fetchedAt:
+            canUsePersistedResponse && persistedFallback
+              ? persistedFallback.fetchedAt
+              : null,
+          cacheAgeMs:
+            canUsePersistedResponse && persistedFallback
+              ? persistedFallback.cacheAgeMs
+              : null,
+          fallbackToPersistent:
+            Boolean(persistedFallback) && !canUsePersistedResponse,
         },
         diagnostics,
       },

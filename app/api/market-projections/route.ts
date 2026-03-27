@@ -9,6 +9,9 @@ import { isWithinSharpRefreshWindow } from "@/lib/utils/sharp-refresh-window"
 const CACHE_TTL_MS = 1000 * 60 * 30
 const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
 const REFRESH_LOCK_TTL_MS = 1000 * 60 * 8
+const PROJECTION_STABILITY_SMOOTHING = 0.7
+const PROJECTION_FLIP_MIN_CONFIDENCE = 0.535
+const PROJECTION_FLIP_MIN_ADVANTAGE = 0.02
 
 type RefreshComputationResult = {
   updatedAt: string
@@ -24,6 +27,9 @@ const inFlightRefreshes = new Map<
 
 const normalizeKey = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+const clampProbability = (value: number) =>
+  Math.max(0.01, Math.min(0.99, value))
 
 const buildMatchupKey = (homeTeam?: string, awayTeam?: string) => {
   if (!homeTeam || !awayTeam) return ""
@@ -250,6 +256,208 @@ const mergeWhaleAlerts = (
   })
 }
 
+const resolveMarketSideToken = (
+  projection: any,
+  market: "spread" | "total" | "moneyline",
+  edge: any
+) => {
+  const raw = String(projection?.side ?? "").trim()
+  if (!raw) return ""
+  const token = normalizeKey(raw)
+
+  if (market === "total") {
+    if (token.includes("under")) return "under"
+    if (token.includes("over")) return "over"
+    return ""
+  }
+
+  const homeToken = normalizeKey(String(edge?.homeTeam ?? ""))
+  const awayToken = normalizeKey(String(edge?.awayTeam ?? ""))
+  if (homeToken && (token === homeToken || token.includes(homeToken) || homeToken.includes(token))) {
+    return "home"
+  }
+  if (awayToken && (token === awayToken || token.includes(awayToken) || awayToken.includes(token))) {
+    return "away"
+  }
+  if (token.includes("home")) return "home"
+  if (token.includes("away")) return "away"
+  return ""
+}
+
+const resolveProbabilityForSideToken = (
+  projection: any,
+  market: "spread" | "total" | "moneyline",
+  edge: any,
+  sideToken: string
+) => {
+  const probability =
+    typeof projection?.probability === "number" && Number.isFinite(projection.probability)
+      ? projection.probability
+      : null
+  if (probability == null) return null
+
+  const projectionSideToken = resolveMarketSideToken(projection, market, edge)
+  if (!projectionSideToken || !sideToken) return null
+  if (projectionSideToken === sideToken) return clampProbability(probability)
+  return clampProbability(1 - probability)
+}
+
+const recomputeProjectionEdgePercent = (projection: any, probability: number) => {
+  const breakEven =
+    typeof projection?.breakEven === "number" && Number.isFinite(projection.breakEven)
+      ? projection.breakEven
+      : null
+  if (breakEven != null) {
+    return Math.max(0, (probability - breakEven) * 100)
+  }
+  const prior =
+    typeof projection?.edgePercent === "number" && Number.isFinite(projection.edgePercent)
+      ? projection.edgePercent
+      : 0
+  return Math.max(0, prior)
+}
+
+const stabilizeSingleMarketProjection = ({
+  edge,
+  market,
+  currentProjection,
+  previousProjection,
+}: {
+  edge: any
+  market: "spread" | "total" | "moneyline"
+  currentProjection: any
+  previousProjection: any
+}) => {
+  if (!currentProjection || !previousProjection) {
+    return { projection: currentProjection, heldFlip: false }
+  }
+
+  const currentProbability =
+    typeof currentProjection?.probability === "number" &&
+    Number.isFinite(currentProjection.probability)
+      ? clampProbability(currentProjection.probability)
+      : null
+  const previousProbability =
+    typeof previousProjection?.probability === "number" &&
+    Number.isFinite(previousProjection.probability)
+      ? clampProbability(previousProjection.probability)
+      : null
+
+  if (currentProbability == null || previousProbability == null) {
+    return { projection: currentProjection, heldFlip: false }
+  }
+
+  const currentSide = resolveMarketSideToken(currentProjection, market, edge)
+  const previousSide = resolveMarketSideToken(previousProjection, market, edge)
+  if (!currentSide || !previousSide) {
+    return { projection: currentProjection, heldFlip: false }
+  }
+
+  if (currentSide !== previousSide) {
+    const previousSupportForCurrent = resolveProbabilityForSideToken(
+      previousProjection,
+      market,
+      edge,
+      currentSide
+    )
+    const flipAdvantage =
+      previousSupportForCurrent == null
+        ? currentProbability - 0.5
+        : currentProbability - previousSupportForCurrent
+
+    if (
+      currentProbability < PROJECTION_FLIP_MIN_CONFIDENCE ||
+      flipAdvantage < PROJECTION_FLIP_MIN_ADVANTAGE
+    ) {
+      return { projection: previousProjection, heldFlip: true }
+    }
+
+    return { projection: currentProjection, heldFlip: false }
+  }
+
+  const smoothedProbability = clampProbability(
+    currentProbability * PROJECTION_STABILITY_SMOOTHING +
+      previousProbability * (1 - PROJECTION_STABILITY_SMOOTHING)
+  )
+
+  if (Math.abs(smoothedProbability - currentProbability) < 0.001) {
+    return { projection: currentProjection, heldFlip: false }
+  }
+
+  return {
+    projection: {
+      ...currentProjection,
+      probability: smoothedProbability,
+      edgePercent: recomputeProjectionEdgePercent(currentProjection, smoothedProbability),
+    },
+    heldFlip: false,
+  }
+}
+
+const stabilizeSharpProjections = (nextEdges: any[], cachedEdges?: any[]) => {
+  if (!Array.isArray(nextEdges) || nextEdges.length === 0) return nextEdges
+  if (!Array.isArray(cachedEdges) || cachedEdges.length === 0) return nextEdges
+
+  const byContextKey = new Map<string, any>()
+  const byMatchupKey = new Map<string, any>()
+  for (const edge of cachedEdges) {
+    const contextKey = buildEdgeContextKey(edge)
+    if (contextKey) byContextKey.set(contextKey, edge)
+    const matchupKey = buildMatchupKey(edge?.homeTeam, edge?.awayTeam)
+    if (matchupKey && !byMatchupKey.has(matchupKey)) byMatchupKey.set(matchupKey, edge)
+  }
+
+  let heldFlips = 0
+  const stabilized = nextEdges.map((edge) => {
+    const contextKey = buildEdgeContextKey(edge)
+    const matchupKey = buildMatchupKey(edge?.homeTeam, edge?.awayTeam)
+    const cached =
+      (contextKey ? byContextKey.get(contextKey) : undefined) ||
+      (matchupKey ? byMatchupKey.get(matchupKey) : undefined)
+    if (!cached?.sharpProjections || !edge?.sharpProjections) return edge
+
+    const currentProjections = edge.sharpProjections
+    const previousProjections = cached.sharpProjections
+
+    const spread = stabilizeSingleMarketProjection({
+      edge,
+      market: "spread",
+      currentProjection: currentProjections?.spread,
+      previousProjection: previousProjections?.spread,
+    })
+    const total = stabilizeSingleMarketProjection({
+      edge,
+      market: "total",
+      currentProjection: currentProjections?.total,
+      previousProjection: previousProjections?.total,
+    })
+    const moneyline = stabilizeSingleMarketProjection({
+      edge,
+      market: "moneyline",
+      currentProjection: currentProjections?.moneyline,
+      previousProjection: previousProjections?.moneyline,
+    })
+
+    heldFlips += Number(spread.heldFlip) + Number(total.heldFlip) + Number(moneyline.heldFlip)
+
+    return {
+      ...edge,
+      sharpProjections: {
+        ...currentProjections,
+        spread: spread.projection,
+        total: total.projection,
+        moneyline: moneyline.projection,
+      },
+    }
+  })
+
+  if (heldFlips > 0) {
+    console.log(`[market-projections] stabilization held ${heldFlips} weak projection flips`)
+  }
+
+  return stabilized
+}
+
 const hydrateMissingSharpProjections = (edges: any[], sport: string): any[] => {
   if (!Array.isArray(edges) || edges.length === 0) return edges
 
@@ -443,7 +651,8 @@ const computeAndPersistRefresh = async ({
     cachedEdges
   )
   const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
-  const upcomingEdges = filterNotStartedEdges(hydratedEdges)
+  const stabilizedEdges = stabilizeSharpProjections(hydratedEdges, cachedEdges)
+  const upcomingEdges = filterNotStartedEdges(stabilizedEdges)
   const sanitizedEdges = stripNonSharpBookOdds(upcomingEdges)
   const currentSlateEdgeCount = countCurrentSlateEdges(sanitizedEdges)
 

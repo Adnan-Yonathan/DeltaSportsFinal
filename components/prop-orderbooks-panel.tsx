@@ -1087,7 +1087,7 @@ export default function PropOrderbooksPanel({
       try {
         const shouldForceRefresh = forceRefresh
         const params = new URLSearchParams({
-          sport: "all",
+          sport: selectedSport,
           limit: String(limit),
           depth: String(depth),
           minSharpNotional: String(minSharpNotional),
@@ -1153,7 +1153,7 @@ export default function PropOrderbooksPanel({
         setRefreshing(false)
       }
     },
-    [depth, limit, minSharpNotional]
+    [depth, limit, minSharpNotional, selectedSport]
   )
 
   useEffect(() => {
@@ -1191,7 +1191,7 @@ export default function PropOrderbooksPanel({
       forceRefresh: false,
       background: useBackgroundRefresh,
     })
-  }, [initialData, load, sport])
+  }, [initialData, load, selectedSport, sport])
 
   useEffect(() => {
     const interval = window.setInterval(() => {

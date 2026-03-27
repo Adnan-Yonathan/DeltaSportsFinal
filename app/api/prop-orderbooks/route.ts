@@ -76,7 +76,10 @@ export async function GET(req: NextRequest) {
         dateWindow,
         todayKey,
       })
-      if (persisted) {
+      const canServePersistedImmediately =
+        Boolean(persisted) &&
+        (sport === 'all' || persisted?.source === 'persistent')
+      if (persisted && canServePersistedImmediately) {
         const diagnostics = resolveSnapshotDiagnostics(persisted.items)
         return NextResponse.json(
           {
@@ -112,7 +115,7 @@ export async function GET(req: NextRequest) {
       mode,
     })
 
-    if (canUsePersistentCache) {
+    if (canUsePersistentCache && (mode === 'full' || forceRefresh)) {
       await persistPropOrderbooksSnapshot({
         sport,
         depth: normalizedDepth,

@@ -76,6 +76,13 @@ const buildMinimumSourceTargets = (limit: number): Record<SourceKey, number> => 
   return { kalshi: 3, polymarket: 3, novig: 2, prophetx: 2 }
 }
 
+const buildMinimumSportTarget = (limit: number) => {
+  if (limit <= 60) return 1
+  if (limit <= 120) return 2
+  if (limit <= 180) return 4
+  return 8
+}
+
 export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>({
   sportFilter,
   requestedLimit,
@@ -109,12 +116,14 @@ export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>(
     novig: 0,
     prophetx: 0,
   }
+  const sportCounts = new Map<string, number>()
 
   const pushItem = (item: T) => {
     if (selectedById.has(item.id)) return false
     selected.push(item)
     selectedById.add(item.id)
     sourceCounts[item.source] += 1
+    sportCounts.set(item.sportKey, (sportCounts.get(item.sportKey) ?? 0) + 1)
     return true
   }
 
@@ -127,6 +136,12 @@ export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>(
   for (const item of allCandidates) {
     candidatesBySource[item.source].push(item)
   }
+  const candidatesBySport = new Map<string, T[]>()
+  for (const item of allCandidates) {
+    const existing = candidatesBySport.get(item.sportKey) ?? []
+    existing.push(item)
+    candidatesBySport.set(item.sportKey, existing)
+  }
 
   // Seed source diversity so non-Kalshi books are always represented when data exists.
   for (const source of ["kalshi", "polymarket", "novig", "prophetx"] as const) {
@@ -135,6 +150,18 @@ export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>(
     for (const item of candidatesBySource[source]) {
       if (selected.length >= requestedLimit) break
       if (sourceCounts[source] >= target) break
+      pushItem(item)
+    }
+  }
+
+  // Ensure each sport gets baseline representation in the all-sports view.
+  const minimumPerSport = buildMinimumSportTarget(requestedLimit)
+  for (const [sportKey, sportItems] of candidatesBySport.entries()) {
+    for (const item of sportItems) {
+      if (selected.length >= requestedLimit) break
+      if ((sportCounts.get(sportKey) ?? 0) >= minimumPerSport) break
+      const cap = sourceCaps[item.source]
+      if (sourceCounts[item.source] >= cap) continue
       pushItem(item)
     }
   }

@@ -200,6 +200,8 @@ type LimitHistoryPoint = {
   forLimit: number | null
   againstLimit: number | null
   netLimit: number | null
+  line?: number | null
+  odds?: number | null
 }
 
 const BOOK_LOGOS: Partial<Record<BookFilterKey, string>> = {
@@ -1819,8 +1821,14 @@ export default function MarketProjectionsTable({
     }
 
     const loadLimitHistory = async () => {
+      const side = resolveLineHistorySide(
+        historyModal.game,
+        historyModal.market,
+        historyModal.pick
+      )
       const params = new URLSearchParams({
         market: historyModal.market,
+        side,
         hours: "120",
         limit: "1000",
       })
@@ -1846,8 +1854,14 @@ export default function MarketProjectionsTable({
               forLimit: coerceNumber(point?.forLimit),
               againstLimit: coerceNumber(point?.againstLimit),
               netLimit: coerceNumber(point?.netLimit),
+              line: coerceNumber(point?.line),
+              odds: coerceNumber(point?.odds),
             }))
             .filter((point: LimitHistoryPoint) => Boolean(point.t))
+            .sort(
+              (a: LimitHistoryPoint, b: LimitHistoryPoint) =>
+                Date.parse(a.t) - Date.parse(b.t)
+            )
         : []
 
       if (parsed.length) {
@@ -1935,6 +1949,13 @@ export default function MarketProjectionsTable({
   }, [baseEdges, sport, leagueFilter, matchFilter, dateFilter, searchQuery, filter, selectedBook])
 
   const visibleEdges = previewMode ? filteredEdges.slice(0, 1) : filteredEdges
+  const latestLimitSnapshot = useMemo(
+    () =>
+      limitHistoryPoints.length
+        ? limitHistoryPoints[limitHistoryPoints.length - 1]
+        : null,
+    [limitHistoryPoints]
+  )
 
   const filterLabels = resolveFilterLabels(filter)
   const handleBookSelect = (book: BookFilterKey) => {
@@ -2088,14 +2109,26 @@ export default function MarketProjectionsTable({
                           tickFormatter={(value) => formatHistoryTime(value)}
                         />
                         <YAxis
+                          yAxisId="limits"
                           tickLine={false}
                           axisLine={false}
                           tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
                           tickFormatter={(value) => formatCurrency(value)}
                         />
+                        <YAxis
+                          yAxisId="odds"
+                          orientation="right"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
+                          tickFormatter={(value) => formatOdds(value)}
+                        />
                         <Tooltip
                           labelFormatter={(label) => formatShortDateTime(String(label))}
-                          formatter={(value: unknown, name: string) => [formatCurrency(coerceNumber(value)), name]}
+                          formatter={(value: unknown, name: string) => {
+                            if (name === "Pinnacle odds") return [formatOdds(coerceNumber(value)), name]
+                            return [formatCurrency(coerceNumber(value)), name]
+                          }}
                           contentStyle={{
                             background: "rgba(0,0,0,0.9)",
                             border: "1px solid rgba(255,255,255,0.16)",
@@ -2103,9 +2136,46 @@ export default function MarketProjectionsTable({
                             color: "white",
                           }}
                         />
-                        <Line type="monotone" dataKey="forLimit" name="For" stroke="#60a5fa" strokeWidth={2} dot={false} />
-                        <Line type="monotone" dataKey="againstLimit" name="Against" stroke="#f87171" strokeWidth={2} dot={false} />
-                        <Line type="monotone" dataKey="netLimit" name="Net" stroke="#4ade80" strokeWidth={2.3} dot={false} />
+                        <Line
+                          type="monotone"
+                          yAxisId="limits"
+                          dataKey="forLimit"
+                          name="For"
+                          stroke="#60a5fa"
+                          strokeWidth={2}
+                          dot={limitHistoryPoints.length <= 1}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          yAxisId="limits"
+                          dataKey="againstLimit"
+                          name="Against"
+                          stroke="#f87171"
+                          strokeWidth={2}
+                          dot={limitHistoryPoints.length <= 1}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          yAxisId="limits"
+                          dataKey="netLimit"
+                          name="Net"
+                          stroke="#4ade80"
+                          strokeWidth={2.3}
+                          dot={limitHistoryPoints.length <= 1}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          yAxisId="odds"
+                          dataKey="odds"
+                          name="Pinnacle odds"
+                          stroke="#c084fc"
+                          strokeWidth={2}
+                          dot={limitHistoryPoints.length <= 1}
+                          connectNulls
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -2142,9 +2212,23 @@ export default function MarketProjectionsTable({
                             color: "white",
                           }}
                         />
-                        <Line type="monotone" dataKey="score" name="Pressure score" stroke="#facc15" strokeWidth={2} dot={false} />
+                        <Line
+                          type="monotone"
+                          dataKey="score"
+                          name="Pressure score"
+                          stroke="#facc15"
+                          strokeWidth={2}
+                          dot={limitHistoryPoints.length <= 1}
+                          connectNulls
+                        />
                       </LineChart>
                     </ResponsiveContainer>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
+                    Current snapshot: For {formatCurrency(latestLimitSnapshot?.forLimit)} | Against{" "}
+                    {formatCurrency(latestLimitSnapshot?.againstLimit)} | Net{" "}
+                    {formatCurrency(latestLimitSnapshot?.netLimit)} | Pinnacle odds{" "}
+                    {formatOdds(latestLimitSnapshot?.odds ?? null)}
                   </div>
                 </div>
               ) : (

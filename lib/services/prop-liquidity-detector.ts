@@ -239,7 +239,17 @@ export type PropOrderbookItem = {
   updatedAt: string
 }
 
-const MAX_FAVORITE_ODDS = -200
+const DEFAULT_MAX_FAVORITE_ODDS = -200
+const MAX_FAVORITE_ODDS_BY_SPORT: Partial<Record<string, number>> = {
+  // MLB props are frequently juiced past -200 (especially 0.5 and combo lines).
+  baseball_mlb: -500,
+}
+
+const passesFavoriteOddsGate = (odds: number | null, sportKey: string) => {
+  if (odds == null || !Number.isFinite(odds)) return true
+  const cap = MAX_FAVORITE_ODDS_BY_SPORT[sportKey] ?? DEFAULT_MAX_FAVORITE_ODDS
+  return odds >= cap
+}
 
 const priceCentsToAmericanOdds = (priceCents: number | null) => {
   if (priceCents == null) return null
@@ -1564,10 +1574,7 @@ const fetchExchangePropOrderbookItems = async (opts: {
           if (!sides.length) continue
 
           const sharpLean = resolveSharpLean(sides, minSharpNotional)
-          if (
-            sharpLean.sharpLeanAmericanOdds != null &&
-            sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
-          ) {
+          if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, sportKey)) {
             continue
           }
 
@@ -1748,10 +1755,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       if (!sides.length) return null
 
       const sharpLean = resolveSharpLean(sides, minSharpNotional)
-      if (
-        sharpLean.sharpLeanAmericanOdds != null &&
-        sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
-      ) {
+      if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, series.sportKey)) {
         return null
       }
       const leanSportsbookQuote =
@@ -1928,10 +1932,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         if (hasMirroredExtremeWalls) return null
 
         const sharpLean = resolveSharpLean(sides, minSharpNotional)
-        if (
-          sharpLean.sharpLeanAmericanOdds != null &&
-          sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
-        ) {
+        if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, sportMeta.sportKey)) {
           return null
         }
         const leanSportsbookQuote =

@@ -1117,7 +1117,9 @@ export default function PropOrderbooksPanel({
         const hasNewerSnapshot = nextUpdatedAtMs > previousUpdatedAtMs
         const sourceLabel = String(payload?.cache?.source ?? "")
         const severeSourceDrop =
-          background && hasSevereNonKalshiSourceDrop(previousItems, nextItems)
+          background &&
+          selectedSport === "all" &&
+          hasSevereNonKalshiSourceDrop(previousItems, nextItems)
         const shouldAcceptBackground =
           !background ||
           (!severeSourceDrop &&

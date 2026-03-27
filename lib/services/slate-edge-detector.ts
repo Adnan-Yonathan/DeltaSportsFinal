@@ -1968,7 +1968,7 @@ export async function analyzeSlateEdges(
     }
   }
 
-  // Filter to upcoming games (and recent in-progress) for projections.
+  // Filter to strictly upcoming games for projections.
   const now = new Date()
   const useDateOverride = Boolean(date)
   const upcomingWindowHours = isCfb
@@ -1979,7 +1979,6 @@ export async function analyzeSlateEdges(
         ? 48
         : 24
   const windowEnd = new Date(now.getTime() + upcomingWindowHours * 60 * 60 * 1000)
-  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
 
   // Calculate target date boundaries in US Eastern time for date override.
   const easternFormatter = new Intl.DateTimeFormat('en-US', {
@@ -2002,9 +2001,13 @@ export async function analyzeSlateEdges(
       if (isCfb) return true
       const gameTime = new Date(g.commence_time)
       if (useDateOverride) {
-        return gameTime >= todayStartEastern && gameTime <= todayEndEastern
+        return (
+          gameTime >= todayStartEastern &&
+          gameTime <= todayEndEastern &&
+          gameTime > now
+        )
       }
-      return gameTime >= threeHoursAgo && gameTime <= windowEnd
+      return gameTime > now && gameTime <= windowEnd
     })
     .slice(0, limit)
 

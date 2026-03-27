@@ -199,9 +199,9 @@ const mergeSharpContextFromCache = (
 const stripNonSharpBookOdds = (edges: any[]) => edges
 
 const isNotStartedGame = (commenceTime?: string | null, nowMs = Date.now()) => {
-  if (!commenceTime) return true
+  if (!commenceTime) return false
   const gameTimeMs = Date.parse(commenceTime)
-  if (!Number.isFinite(gameTimeMs)) return true
+  if (!Number.isFinite(gameTimeMs)) return false
   return gameTimeMs > nowMs
 }
 

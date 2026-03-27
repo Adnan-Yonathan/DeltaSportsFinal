@@ -327,9 +327,9 @@ const resolveGameSportKey = (game: EdgeGame, fallbackSport?: string) =>
   game.sport ?? fallbackSport
 
 const isUpcomingGame = (commenceTime?: string) => {
-  if (!commenceTime) return true
+  if (!commenceTime) return false
   const time = Date.parse(commenceTime)
-  if (!Number.isFinite(time)) return true
+  if (!Number.isFinite(time)) return false
   // Hide a bet as soon as the game starts.
   return time > Date.now()
 }

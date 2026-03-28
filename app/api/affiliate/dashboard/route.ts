@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -29,7 +29,7 @@ const isMissingColumnError = (error: any, columnName: string) => {
 const isMissingAnyColumnError = (error: any, columnNames: string[]) =>
   columnNames.some((columnName) => isMissingColumnError(error, columnName))
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createRouteHandlerClient<any>({ cookies })
   const {
     data: { user },
@@ -183,7 +183,7 @@ export async function GET() {
       (row) => toInteger(row.lifetime_revenue_cents) > 0
     ).length
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const origin = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
     return NextResponse.json({
       affiliate,

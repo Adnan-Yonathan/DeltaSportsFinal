@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
     const affiliate = await ensureAffiliateProfile(serviceSupabase as any, user.id)
     const origin =
       req.headers.get('origin') ||
-      process.env.NEXT_PUBLIC_APP_URL ||
       req.nextUrl.origin ||
+      process.env.NEXT_PUBLIC_APP_URL ||
       'http://localhost:3000'
 
     return NextResponse.json({

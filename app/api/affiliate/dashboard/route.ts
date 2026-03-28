@@ -26,6 +26,9 @@ const isMissingColumnError = (error: any, columnName: string) => {
   return message.includes(column) && message.includes('does not exist')
 }
 
+const isMissingAnyColumnError = (error: any, columnNames: string[]) =>
+  columnNames.some((columnName) => isMissingColumnError(error, columnName))
+
 export async function GET() {
   const supabase = createRouteHandlerClient<any>({ cookies })
   const {
@@ -55,7 +58,15 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (primary.error && isMissingColumnError(primary.error, 'subscriber_status')) {
+      if (
+        primary.error &&
+        isMissingAnyColumnError(primary.error, [
+          'subscriber_status',
+          'last_invoice_paid_at',
+          'lifetime_revenue_cents',
+          'lifetime_commission_cents',
+        ])
+      ) {
         const fallback = await db
           .from('affiliate_attributions')
           .select(legacySelect)

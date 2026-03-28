@@ -20,6 +20,12 @@ const sumBy = (rows: Array<Record<string, unknown>>, key: string, statuses?: str
     return total + toInteger(row[key])
   }, 0)
 
+const isMissingColumnError = (error: any, columnName: string) => {
+  const message = String(error?.message ?? '').toLowerCase()
+  const column = columnName.toLowerCase()
+  return message.includes(column) && message.includes('does not exist')
+}
+
 export async function GET() {
   const supabase = createRouteHandlerClient<any>({ cookies })
   const {
@@ -36,31 +42,55 @@ export async function GET() {
     const db = serviceSupabase as any
     const affiliate = await ensureAffiliateProfile(serviceSupabase as any, user.id)
 
-    const [{ data: attributions, error: attrError }, { data: commissions, error: commError }, { data: payoutRequests, error: payoutError }] =
-      await Promise.all([
-        db
+    const fetchAttributions = async () => {
+      const enrichedSelect =
+        'id,code,referred_user_id,subscription_id,status,created_at,converted_at,paid_at,subscriber_status,last_invoice_paid_at,amount_cents,lifetime_revenue_cents,lifetime_commission_cents'
+      const legacySelect =
+        'id,code,referred_user_id,subscription_id,status,created_at,converted_at,paid_at,trial_end_at,amount_cents'
+
+      const primary = await db
+        .from('affiliate_attributions')
+        .select(enrichedSelect)
+        .eq('code', affiliate.code)
+        .order('created_at', { ascending: false })
+        .limit(500)
+
+      if (primary.error && isMissingColumnError(primary.error, 'subscriber_status')) {
+        const fallback = await db
           .from('affiliate_attributions')
-          .select(
-            'id,code,referred_user_id,subscription_id,status,created_at,converted_at,paid_at,subscriber_status,last_invoice_paid_at,amount_cents,lifetime_revenue_cents,lifetime_commission_cents'
-          )
+          .select(legacySelect)
           .eq('code', affiliate.code)
           .order('created_at', { ascending: false })
-          .limit(500),
-        db
-          .from('affiliate_commissions')
-          .select(
-            'id,affiliate_code,attribution_id,referred_user_id,subscription_id,stripe_invoice_id,invoice_amount_cents,commission_rate_bps,commission_amount_cents,status,earned_at,paid_at,payout_request_id'
-          )
-          .eq('affiliate_code', affiliate.code)
-          .order('earned_at', { ascending: false })
-          .limit(1000),
-        db
-          .from('affiliate_payout_requests')
-          .select('id,affiliate_code,amount_cents,status,created_at,processed_at,notes')
-          .eq('affiliate_code', affiliate.code)
-          .order('created_at', { ascending: false })
-          .limit(200),
-      ])
+          .limit(500)
+        return { data: fallback.data, error: fallback.error, legacySchema: true as const }
+      }
+
+      return { data: primary.data, error: primary.error, legacySchema: false as const }
+    }
+
+    const [
+      attributionResult,
+      { data: commissions, error: commError },
+      { data: payoutRequests, error: payoutError },
+    ] = await Promise.all([
+      fetchAttributions(),
+      db
+        .from('affiliate_commissions')
+        .select(
+          'id,affiliate_code,attribution_id,referred_user_id,subscription_id,stripe_invoice_id,invoice_amount_cents,commission_rate_bps,commission_amount_cents,status,earned_at,paid_at,payout_request_id'
+        )
+        .eq('affiliate_code', affiliate.code)
+        .order('earned_at', { ascending: false })
+        .limit(1000),
+      db
+        .from('affiliate_payout_requests')
+        .select('id,affiliate_code,amount_cents,status,created_at,processed_at,notes')
+        .eq('affiliate_code', affiliate.code)
+        .order('created_at', { ascending: false })
+        .limit(200),
+    ])
+
+    const { data: attributions, error: attrError } = attributionResult
 
     if (attrError || commError || payoutError) {
       throw new Error(attrError?.message || commError?.message || payoutError?.message || 'Failed to load affiliate dashboard')
@@ -100,10 +130,20 @@ export async function GET() {
     const requestedCommissionCents = sumBy(commissionRows, 'commission_amount_cents', ['requested'])
     const paidCommissionCents = sumBy(commissionRows, 'commission_amount_cents', ['paid'])
 
+    const resolveSubscriberStatus = (row: Record<string, unknown>) => {
+      const modernStatus = String(row.subscriber_status ?? '').toLowerCase()
+      if (modernStatus) return modernStatus
+      const legacyStatus = String(row.status ?? '').toLowerCase()
+      if (legacyStatus === 'pending') return 'trialing'
+      if (legacyStatus === 'earned' || legacyStatus === 'paid') return 'active'
+      return legacyStatus || 'pending'
+    }
+
     const enrichedAttributions: Array<Record<string, unknown>> = attributionRows.map((row) => {
       const referredUserId = String(row.referred_user_id ?? '')
       return {
         ...row,
+        subscriber_status: resolveSubscriberStatus(row),
         referred_email: userEmailById.get(referredUserId) ?? null,
       }
     })

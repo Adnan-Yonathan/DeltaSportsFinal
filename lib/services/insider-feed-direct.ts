@@ -135,12 +135,38 @@ const parseNum = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
-const isSportSlug = (slug: string) => SPORT_PREFIXES.some(p => slug.startsWith(p))
+const normalizeSlug = (value?: string | null): string =>
+  String(value ?? '').trim().toLowerCase()
+
+const MLB_TITLE_HINT = /\b(mlb|major league baseball|baseball)\b/i
+
+const sportKeyFromSlug = (slug: string): string | null => {
+  const prefix = SPORT_PREFIXES.find((p) => slug.startsWith(p))
+  if (!prefix) return null
+  return prefix.slice(0, -1)
+}
+
+const resolveTradeSportKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>): string | null => {
+  const slugKey = sportKeyFromSlug(normalizeSlug(trade.slug))
+  if (slugKey) return slugKey
+
+  const eventSlugKey = sportKeyFromSlug(normalizeSlug(trade.eventSlug))
+  if (eventSlugKey) return eventSlugKey
+
+  // MLB markets can arrive with team-name slugs that do not include an `mlb-` prefix.
+  if (MLB_TITLE_HINT.test(String(trade.title ?? ''))) return 'mlb'
+  return null
+}
+
+const sportLabelForTrade = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>): string | null => {
+  const sportKey = resolveTradeSportKey(trade)
+  if (!sportKey) return null
+  return SPORT_LABEL_MAP[sportKey] ?? null
+}
 
 const sportLabel = (slug: string): string | null => {
-  const prefix = SPORT_PREFIXES.find(p => slug.startsWith(p))
-  if (!prefix) return null
-  const key = prefix.slice(0, -1)
+  const key = sportKeyFromSlug(normalizeSlug(slug))
+  if (!key) return null
   return SPORT_LABEL_MAP[key] ?? null
 }
 
@@ -232,14 +258,16 @@ type PositionState = {
   outcome:        string
   slug:           string
   eventSlug:      string | null
+  sportLabel:     string | null
   firstTradeTime: string | null
   lastTradeTime:  string | null
   buyCount:       number
 }
 
 function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
-  const slug = trade.slug ?? ''
-  if (!slug || !isSportSlug(slug)) return
+  const slug = normalizeSlug(trade.slug)
+  const tradeSportLabel = sportLabelForTrade(trade)
+  if (!slug || !tradeSportLabel) return
 
   const size  = parseNum(trade.size)
   const price = parseNum(trade.price)
@@ -250,11 +278,23 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
 
   let pos = positions.get(key)
   if (!pos) {
-    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, eventSlug: trade.eventSlug ?? null, firstTradeTime: null, lastTradeTime: null, buyCount: 0 }
+    pos = {
+      shares: 0,
+      costBasis: 0,
+      title: trade.title ?? slug,
+      outcome,
+      slug,
+      eventSlug: normalizeSlug(trade.eventSlug) || null,
+      sportLabel: tradeSportLabel,
+      firstTradeTime: null,
+      lastTradeTime: null,
+      buyCount: 0,
+    }
     positions.set(key, pos)
   }
 
-  if (!pos.eventSlug && trade.eventSlug) pos.eventSlug = trade.eventSlug
+  if (!pos.eventSlug && trade.eventSlug) pos.eventSlug = normalizeSlug(trade.eventSlug) || null
+  if (!pos.sportLabel && tradeSportLabel) pos.sportLabel = tradeSportLabel
 
   if (trade.side === 'BUY') {
     pos.shares    += size
@@ -448,8 +488,7 @@ export async function discoverInsiderWallets(): Promise<DiscoveryResult> {
     for (const page of globalTradePages) {
       if (!Array.isArray(page)) continue
       for (const trade of page as TradeEntry[]) {
-        const slug = trade.slug ?? ''
-        if (!isSportSlug(slug)) continue
+        if (!sportLabelForTrade(trade)) continue
         const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
         if (!wallet || qualifiedWallets.has(wallet)) continue
         newWalletAddresses.add(wallet)
@@ -510,7 +549,7 @@ export async function discoverInsiderWallets(): Promise<DiscoveryResult> {
 
     const targetMarkets: { slug: string; conditionId: string }[] = []
     for (const m of gammaMarkets) {
-      const slug = String(m.slug ?? '')
+      const slug = normalizeSlug(String(m.slug ?? ''))
       const conditionId = String(m.conditionId ?? '')
       if (!conditionId || !HOLDER_DISCOVERY_PREFIXES.some(p => slug.startsWith(p))) continue
       targetMarkets.push({ slug, conditionId })
@@ -745,7 +784,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
         eventSlug:          pos.eventSlug,
         title:              pos.title,
         outcome:            pos.outcome,
-        sportLabel:         sportLabel(pos.slug),
+        sportLabel:         pos.sportLabel ?? sportLabel(pos.eventSlug ?? pos.slug),
         avgEntryPrice,
         shares:             pos.shares,
         stakeUsd:           pos.costBasis,

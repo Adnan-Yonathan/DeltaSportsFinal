@@ -282,7 +282,7 @@ export async function getInsiderFeed(opts: {
 
   if (!data?.length) return []
 
-  const minStakeRows = (data as any[]).filter((row) => (row.stake_usd ?? 0) >= 100)
+  const minStakeRows = (data as any[]).filter((row) => (row.stake_usd ?? 0) >= MIN_STAKE_USD)
   const settledSlugs = await fetchSettledSlugs(
     minStakeRows.map((row) => String(row.slug ?? '')).filter(Boolean)
   )

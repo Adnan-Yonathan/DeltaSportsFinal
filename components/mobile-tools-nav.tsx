@@ -305,6 +305,19 @@ export function MobileMoreSheet({
 
           <button
             type="button"
+            onClick={() => handleInternalNavigation('/affiliate')}
+            className={cn(
+              'flex w-full items-center rounded-xl border px-3 py-2 text-left text-sm transition',
+              isRouteActive('/affiliate')
+                ? 'border-emerald-300/45 bg-emerald-500/15 text-emerald-100'
+                : 'border-white/10 bg-black/40 text-white/85 hover:border-emerald-300/35 hover:bg-emerald-500/10 hover:text-emerald-100'
+            )}
+          >
+            Affiliate
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenSubscription}
             className="flex w-full items-center justify-between rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-left text-sm font-medium text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-500/20"
           >

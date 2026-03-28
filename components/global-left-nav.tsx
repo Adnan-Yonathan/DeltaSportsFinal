@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Eye,
   FlaskConical,
+  HandCoins,
   LogOut,
   Newspaper,
   Percent,
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "polymarket-insider", label: "Insider Feed", href: "/polymarket-insider", icon: Eye },
   { key: "research", label: "Research", href: "/research/sharp-action", icon: FlaskConical },
   { key: "odds-screen", label: "Odds Screen", href: "/odds-screen", icon: Rows3 },
+  { key: "affiliate", label: "Affiliate", href: "/affiliate", icon: HandCoins },
   { key: "calculators", label: "Calculators", href: "/calculators", icon: Calculator },
   {
     key: "guides",

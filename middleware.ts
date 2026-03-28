@@ -23,6 +23,7 @@ const PUBLIC_PATHS = [
 const SESSION_AWARE_PUBLIC_PATHS = ['/welcome', '/pricing', '/checkout']
 
 const ALWAYS_PUBLIC_PREFIXES = [
+  '/a',
   '/blog',
   '/tools',
   '/calculators',
@@ -128,6 +129,7 @@ const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const pathname = req.nextUrl.pathname
+  const isAffiliatePath = pathname === '/affiliate' || pathname.startsWith('/affiliate/')
   const guidePathForToolRoute = resolveGuidePathForToolRoute(pathname)
   const isPrefetchRequest =
     req.headers.get('purpose') === 'prefetch' ||
@@ -220,6 +222,10 @@ export async function middleware(req: NextRequest) {
       return res
     }
     return NextResponse.redirect(new URL('/checkout', req.url))
+  }
+
+  if (isAffiliatePath) {
+    return res
   }
 
   if (shouldStartPrecheckoutOnboarding(membership, effectiveMetadata)) {

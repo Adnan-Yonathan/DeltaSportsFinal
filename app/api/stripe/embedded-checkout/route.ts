@@ -7,6 +7,11 @@ import {
   buildSubscriptionData,
   buildTrialFeeLineItems,
 } from '@/lib/stripe-checkout'
+import { createServiceClient } from '@/lib/supabase/service'
+import {
+  prepareAffiliateAttribution,
+  resolveAffiliateCodeFromRequest,
+} from '@/lib/services/affiliate-program'
 
 export const runtime = 'nodejs'
 
@@ -22,6 +27,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const checkoutContext = await buildCheckoutContext(supabase, user, planKey)
+    const affiliateCode = resolveAffiliateCodeFromRequest(req)
+    let affiliateContext: {
+      affiliateCode?: string | null
+      affiliateAttributionId?: string | null
+    } = {}
+
+    if (affiliateCode) {
+      const serviceSupabase = createServiceClient()
+      const attribution = await prepareAffiliateAttribution({
+        supabase: serviceSupabase as any,
+        referredUserId: user.id,
+        affiliateCode,
+        subscriberStatus: 'pending',
+      })
+      if (attribution) {
+        affiliateContext = {
+          affiliateCode: attribution.code,
+          affiliateAttributionId: attribution.id,
+        }
+      }
+    }
+
+    const checkoutContextWithAffiliate = {
+      ...checkoutContext,
+      ...affiliateContext,
+    }
 
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -39,9 +70,9 @@ export async function POST(req: NextRequest) {
         },
         ...extraLineItems,
       ],
-      subscription_data: buildSubscriptionData(checkoutContext),
+      subscription_data: buildSubscriptionData(checkoutContextWithAffiliate),
       return_url: `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: buildCheckoutSessionMetadata(checkoutContext),
+      metadata: buildCheckoutSessionMetadata(checkoutContextWithAffiliate),
     })
 
     return NextResponse.json({ clientSecret: session.client_secret })

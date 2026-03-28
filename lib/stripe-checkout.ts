@@ -9,6 +9,8 @@ type CheckoutContext = {
   priceId: string
   planConfig: (typeof PLAN_CONFIG)[PlanKey]
   hasUsedTrial: boolean
+  affiliateCode?: string | null
+  affiliateAttributionId?: string | null
 }
 
 export const resolveCheckoutPlan = (planKey: PlanKey) => {
@@ -87,6 +89,10 @@ export const buildSubscriptionData = (
     supabase_user_id: context.user.id,
     plan_key: context.resolvedPlanKey,
     plan_version: '2',
+    ...(context.affiliateCode ? { affiliate_code: context.affiliateCode } : {}),
+    ...(context.affiliateAttributionId
+      ? { affiliate_attribution_id: context.affiliateAttributionId }
+      : {}),
   },
   ...(context.planConfig.trialDays && !context.hasUsedTrial
     ? { trial_period_days: context.planConfig.trialDays }
@@ -106,6 +112,10 @@ export const buildCheckoutSessionMetadata = (context: CheckoutContext) => ({
   supabase_user_id: context.user.id,
   plan_key: context.resolvedPlanKey,
   plan_version: '2',
+  ...(context.affiliateCode ? { affiliate_code: context.affiliateCode } : {}),
+  ...(context.affiliateAttributionId
+    ? { affiliate_attribution_id: context.affiliateAttributionId }
+    : {}),
 })
 
 export const buildCheckoutContext = async (

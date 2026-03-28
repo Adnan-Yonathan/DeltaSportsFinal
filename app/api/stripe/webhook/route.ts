@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
+import { stripe } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import { updateUserSubscriptionState } from '@/lib/stripe-user-subscription'
+import { prepareAffiliateAttribution } from '@/lib/services/affiliate-program'
 import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -96,6 +97,197 @@ async function getUserIdFromCustomer(
   return findUserIdByCustomerIdInAuthUsers(supabase, customerId)
 }
 
+type AffiliateAttributionRow = {
+  id: string
+  code: string
+  referred_user_id: string
+  subscription_id: string | null
+  status: string
+}
+
+const resolveAffiliateAttribution = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  subscriptionId?: string | null
+): Promise<AffiliateAttributionRow | null> => {
+  const db = supabase as any
+
+  if (subscriptionId) {
+    const { data: bySubscription } = await db
+      .from('affiliate_attributions')
+      .select('id,code,referred_user_id,subscription_id,status')
+      .eq('subscription_id', subscriptionId)
+      .maybeSingle()
+    if (bySubscription) return bySubscription as AffiliateAttributionRow
+  }
+
+  const { data: byUser } = await db
+    .from('affiliate_attributions')
+    .select('id,code,referred_user_id,subscription_id,status')
+    .eq('referred_user_id', userId)
+    .maybeSingle()
+
+  return (byUser ?? null) as AffiliateAttributionRow | null
+}
+
+const refreshAffiliateAttributionTotals = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  attributionId: string,
+  patch: Record<string, unknown> = {}
+) => {
+  const db = supabase as any
+  const { data: rows, error: rowsError } = await db
+    .from('affiliate_commissions')
+    .select('invoice_amount_cents,commission_amount_cents,status')
+    .eq('attribution_id', attributionId)
+
+  if (rowsError) {
+    console.warn('[AFFILIATE] Failed loading commission rows for totals refresh:', rowsError)
+    return
+  }
+
+  const validStatuses = new Set(['earned', 'requested', 'paid', 'reversed'])
+  const totals = (rows ?? []).reduce(
+    (acc: { revenue: number; commission: number }, row: any) => {
+      if (!validStatuses.has(String(row?.status ?? ''))) return acc
+      const invoiceAmount = Number(row?.invoice_amount_cents ?? 0)
+      const commissionAmount = Number(row?.commission_amount_cents ?? 0)
+      if (Number.isFinite(invoiceAmount)) acc.revenue += Math.trunc(invoiceAmount)
+      if (Number.isFinite(commissionAmount)) acc.commission += Math.trunc(commissionAmount)
+      return acc
+    },
+    { revenue: 0, commission: 0 }
+  )
+
+  const updatePayload = {
+    lifetime_revenue_cents: totals.revenue,
+    lifetime_commission_cents: totals.commission,
+    amount_cents: totals.commission,
+    ...patch,
+  }
+
+  const { error: updateError } = await db
+    .from('affiliate_attributions')
+    .update(updatePayload)
+    .eq('id', attributionId)
+
+  if (updateError) {
+    console.warn('[AFFILIATE] Failed refreshing attribution totals:', updateError)
+  }
+}
+
+const syncAffiliateAttributionStatus = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  subscriptionId: string | null,
+  subscriberStatus: string,
+  stripeCustomerId?: string | null
+) => {
+  const attribution = await resolveAffiliateAttribution(supabase, userId, subscriptionId)
+  if (!attribution || attribution.status === 'blocked') return
+
+  const nowIso = new Date().toISOString()
+  const patch: Record<string, unknown> = {
+    subscriber_status: subscriberStatus,
+  }
+  if (subscriptionId) {
+    patch.subscription_id = subscriptionId
+    patch.attribution_locked_at = nowIso
+  }
+  if (stripeCustomerId) patch.stripe_customer_id = stripeCustomerId
+  if (subscriberStatus === 'active' && !attribution.subscription_id) {
+    patch.converted_at = nowIso
+  }
+
+  const db = supabase as any
+  const { error } = await db
+    .from('affiliate_attributions')
+    .update(patch)
+    .eq('id', attribution.id)
+
+  if (error) {
+    console.warn('[AFFILIATE] Failed syncing subscriber status:', error)
+  }
+}
+
+const syncAffiliateFromCheckoutSession = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  session: Stripe.Checkout.Session,
+  subscriptionStatus: string | null,
+  stripeCustomerId: string | null
+) => {
+  const affiliateCode = session.metadata?.affiliate_code
+  if (!affiliateCode) return
+
+  await prepareAffiliateAttribution({
+    supabase: supabase as any,
+    referredUserId: userId,
+    affiliateCode,
+    subscriptionId: typeof session.subscription === 'string' ? session.subscription : null,
+    stripeCustomerId,
+    subscriberStatus: subscriptionStatus || 'pending',
+  })
+}
+
+const maybeRecordAffiliateCommission = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  subscriptionId: string,
+  invoice: Stripe.Invoice,
+  stripeCustomerId: string | null,
+  subscriberStatus: string
+) => {
+  const invoiceAmountCents = Number(invoice.amount_paid || 0)
+  if (!Number.isFinite(invoiceAmountCents) || invoiceAmountCents <= 0) return
+  if (!invoice.id) return
+
+  const attribution = await resolveAffiliateAttribution(supabase, userId, subscriptionId)
+  if (!attribution || attribution.status === 'blocked') return
+
+  const commissionRateBps = 2500
+  const commissionAmountCents = Math.floor((invoiceAmountCents * commissionRateBps) / 10000)
+  const nowIso = new Date().toISOString()
+  const db = supabase as any
+
+  const { error: commissionError } = await db
+    .from('affiliate_commissions')
+    .upsert(
+      {
+        affiliate_code: attribution.code,
+        attribution_id: attribution.id,
+        referred_user_id: userId,
+        subscription_id: subscriptionId,
+        stripe_invoice_id: invoice.id,
+        invoice_amount_cents: invoiceAmountCents,
+        commission_rate_bps: commissionRateBps,
+        commission_amount_cents: commissionAmountCents,
+        status: 'earned',
+        earned_at: nowIso,
+        metadata: {
+          invoice_number: invoice.number ?? null,
+          billing_reason: invoice.billing_reason ?? null,
+        },
+      },
+      { onConflict: 'stripe_invoice_id', ignoreDuplicates: true }
+    )
+
+  if (commissionError) {
+    console.warn('[AFFILIATE] Failed recording commission row:', commissionError)
+    return
+  }
+
+  await refreshAffiliateAttributionTotals(supabase, attribution.id, {
+    converted_at: nowIso,
+    last_invoice_paid_at: nowIso,
+    subscriber_status: subscriberStatus,
+    subscription_id: subscriptionId,
+    stripe_customer_id: stripeCustomerId,
+    attribution_locked_at: nowIso,
+    status: attribution.status === 'pending' ? 'earned' : attribution.status,
+  })
+}
+
 export async function POST(req: NextRequest) {
   console.log('[STRIPE_WEBHOOK] Webhook endpoint hit')
 
@@ -176,12 +368,19 @@ export async function POST(req: NextRequest) {
 
         // Get the subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+        const subscriptionStatus = subscription.status ?? null
 
         // Update subscription metadata with mapping info for future reference
         await ensureStripeSubscriptionMetadata(subscriptionId, {
           supabase_user_id: userId,
           ...(planKey ? { plan_key: planKey } : {}),
           plan_version: String(planVersion),
+          ...(session.metadata?.affiliate_code
+            ? { affiliate_code: session.metadata.affiliate_code }
+            : {}),
+          ...(session.metadata?.affiliate_attribution_id
+            ? { affiliate_attribution_id: session.metadata.affiliate_attribution_id }
+            : {}),
         })
 
         if (customerId) {
@@ -196,6 +395,20 @@ export async function POST(req: NextRequest) {
           planKey,
           customerId ?? undefined,
           planVersion,
+        )
+        await syncAffiliateFromCheckoutSession(
+          supabase,
+          userId,
+          session,
+          subscriptionStatus,
+          customerId
+        )
+        await syncAffiliateAttributionStatus(
+          supabase,
+          userId,
+          subscriptionId,
+          subscriptionStatus || 'pending',
+          customerId
         )
         console.log(`[STRIPE_WEBHOOK] Subscription created for user ${userId}`)
         break
@@ -234,6 +447,13 @@ export async function POST(req: NextRequest) {
           planKey,
           customerId ?? undefined
         )
+        await syncAffiliateAttributionStatus(
+          supabase,
+          resolvedUserId,
+          subscription.id,
+          subscription.status || 'pending',
+          customerId
+        )
 
         console.log(`[STRIPE_WEBHOOK] Subscription ${event.type} for user ${resolvedUserId ?? 'unknown'}`)
         break
@@ -253,6 +473,13 @@ export async function POST(req: NextRequest) {
           }
 
           await updateUserSubscriptionState(supabase, userId, subscription)
+          await syncAffiliateAttributionStatus(
+            supabase,
+            userId,
+            subscription.id,
+            'canceled',
+            customerId
+          )
           if (subscription.latest_invoice) {
             try {
               const invoice = await stripe.invoices.retrieve(
@@ -308,6 +535,13 @@ export async function POST(req: NextRequest) {
                 payment_failed_at: new Date().toISOString(),
               },
             })
+            await syncAffiliateAttributionStatus(
+              supabase,
+              userId,
+              subscription.id,
+              'past_due',
+              customerId
+            )
             console.log(`[STRIPE_WEBHOOK] Payment failed for user ${userId}`)
           }
         }
@@ -352,6 +586,21 @@ export async function POST(req: NextRequest) {
                 has_successful_payment: true,
               },
             })
+            await syncAffiliateAttributionStatus(
+              supabase,
+              userId,
+              subscription.id,
+              subscription.status || 'active',
+              customerId
+            )
+            await maybeRecordAffiliateCommission(
+              supabase,
+              userId,
+              subscription.id,
+              invoice as Stripe.Invoice,
+              customerId,
+              subscription.status || 'active'
+            )
             console.log(`[STRIPE_WEBHOOK] Payment succeeded for user ${userId}`)
           }
         }

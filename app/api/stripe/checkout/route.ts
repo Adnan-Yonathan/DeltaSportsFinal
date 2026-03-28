@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe, PRICE_IDS, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
 import type Stripe from 'stripe'
+import { createServiceClient } from '@/lib/supabase/service'
+import {
+  prepareAffiliateAttribution,
+  resolveAffiliateCodeFromRequest,
+} from '@/lib/services/affiliate-program'
 
 export const runtime = 'nodejs'
 
@@ -109,12 +114,30 @@ export async function POST(req: NextRequest) {
       : `${origin}/pricing`
 
     const isTrialEligible = Boolean(planConfig.trialDays) && !hasUsedTrial
+    const affiliateCode = resolveAffiliateCodeFromRequest(req)
+    let affiliateMetadata: Record<string, string> = {}
+    if (affiliateCode) {
+      const serviceSupabase = createServiceClient()
+      const attribution = await prepareAffiliateAttribution({
+        supabase: serviceSupabase as any,
+        referredUserId: user.id,
+        affiliateCode,
+        subscriberStatus: 'pending',
+      })
+      if (attribution) {
+        affiliateMetadata = {
+          affiliate_code: attribution.code,
+          affiliate_attribution_id: attribution.id,
+        }
+      }
+    }
 
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
       metadata: {
         supabase_user_id: user.id,
         plan_key: resolvedPlanKey,
         plan_version: '2',
+        ...affiliateMetadata,
       },
       ...(isTrialEligible
         ? { trial_period_days: planConfig.trialDays }
@@ -138,6 +161,7 @@ export async function POST(req: NextRequest) {
         supabase_user_id: user.id,
         plan_key: resolvedPlanKey,
         plan_version: '2',
+        ...affiliateMetadata,
       },
     })
 

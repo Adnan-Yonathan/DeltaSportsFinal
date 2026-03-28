@@ -79,10 +79,34 @@ export async function GET() {
       return { data: primary.data, error: primary.error, legacySchema: false as const }
     }
 
+    const fetchPayoutRequests = async () => {
+      const enrichedSelect = 'id,affiliate_code,amount_cents,status,created_at,processed_at,notes'
+      const legacySelect = 'id,affiliate_code,amount_cents,status,created_at'
+
+      const primary = await db
+        .from('affiliate_payout_requests')
+        .select(enrichedSelect)
+        .eq('affiliate_code', affiliate.code)
+        .order('created_at', { ascending: false })
+        .limit(200)
+
+      if (primary.error && isMissingAnyColumnError(primary.error, ['processed_at', 'notes'])) {
+        const fallback = await db
+          .from('affiliate_payout_requests')
+          .select(legacySelect)
+          .eq('affiliate_code', affiliate.code)
+          .order('created_at', { ascending: false })
+          .limit(200)
+        return { data: fallback.data, error: fallback.error, legacySchema: true as const }
+      }
+
+      return { data: primary.data, error: primary.error, legacySchema: false as const }
+    }
+
     const [
       attributionResult,
       { data: commissions, error: commError },
-      { data: payoutRequests, error: payoutError },
+      payoutRequestResult,
     ] = await Promise.all([
       fetchAttributions(),
       db
@@ -93,15 +117,11 @@ export async function GET() {
         .eq('affiliate_code', affiliate.code)
         .order('earned_at', { ascending: false })
         .limit(1000),
-      db
-        .from('affiliate_payout_requests')
-        .select('id,affiliate_code,amount_cents,status,created_at,processed_at,notes')
-        .eq('affiliate_code', affiliate.code)
-        .order('created_at', { ascending: false })
-        .limit(200),
+      fetchPayoutRequests(),
     ])
 
     const { data: attributions, error: attrError } = attributionResult
+    const { data: payoutRequests, error: payoutError } = payoutRequestResult
 
     if (attrError || commError || payoutError) {
       throw new Error(attrError?.message || commError?.message || payoutError?.message || 'Failed to load affiliate dashboard')

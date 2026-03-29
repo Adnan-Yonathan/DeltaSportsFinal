@@ -37,6 +37,7 @@ type AffiliateDashboardPayload = {
     status: string
   }
   referralUrl: string
+  commissionRateBps?: number
   stats: AffiliateStats
   referrals: AffiliateReferral[]
   payoutRequests: AffiliatePayoutRequest[]
@@ -53,7 +54,7 @@ const formatDate = (value?: string | null) => {
 }
 
 const StatCard = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+  <div className="rounded-xl border border-white/10 bg-black p-4">
     <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">{label}</div>
     <div className="mt-2 text-xl font-semibold text-white">{value}</div>
   </div>
@@ -91,6 +92,10 @@ export default function AffiliateDashboard() {
   }, [])
 
   const availableCents = useMemo(() => data?.stats?.availableCommissionCents ?? 0, [data])
+  const recurringCommissionLabel = useMemo(() => {
+    const bps = data?.commissionRateBps ?? 2500
+    return `${(bps / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}% recurring commissions`
+  }, [data])
 
   const handleCopy = async () => {
     if (!data?.referralUrl) return
@@ -127,7 +132,7 @@ export default function AffiliateDashboard() {
   }
 
   if (loading) {
-    return <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">Loading affiliate dashboard...</div>
+    return <div className="rounded-2xl border border-white/10 bg-black p-6 text-white/70">Loading affiliate dashboard...</div>
   }
 
   if (error || !data) {
@@ -139,12 +144,13 @@ export default function AffiliateDashboard() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <div className="space-y-4 rounded-2xl bg-black p-1">
+      <div className="rounded-2xl border border-white/10 bg-black p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Affiliate Code</div>
             <div className="mt-1 text-2xl font-semibold text-white">{data.affiliate.code}</div>
+            <div className="mt-1 text-xs text-emerald-200/85">{recurringCommissionLabel}</div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -178,7 +184,7 @@ export default function AffiliateDashboard() {
         <StatCard label="Paid Out" value={formatMoney(data.stats.paidCommissionCents)} />
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="rounded-2xl border border-white/10 bg-black p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Payouts</div>
@@ -197,7 +203,7 @@ export default function AffiliateDashboard() {
         {payoutMessage ? <div className="mt-3 text-sm text-white/80">{payoutMessage}</div> : null}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="rounded-2xl border border-white/10 bg-black p-5">
         <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Recent Referrals</div>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-[720px] w-full text-left text-sm text-white/80">

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildAffiliateReferralPath } from '@/lib/affiliate'
+import { AFFILIATE_RECURRING_COMMISSION_BPS } from '@/lib/affiliate-config'
 import { ensureAffiliateProfile } from '@/lib/services/affiliate-program'
 
 export const runtime = 'nodejs'
@@ -189,6 +190,7 @@ export async function GET(req: NextRequest) {
       affiliate,
       referralPath: buildAffiliateReferralPath(affiliate.code),
       referralUrl: `${origin}${buildAffiliateReferralPath(affiliate.code)}`,
+      commissionRateBps: AFFILIATE_RECURRING_COMMISSION_BPS,
       stats: {
         totalReferrals: enrichedAttributions.length,
         paidReferrals,

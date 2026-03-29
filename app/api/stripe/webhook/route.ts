@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import { updateUserSubscriptionState } from '@/lib/stripe-user-subscription'
 import { prepareAffiliateAttribution } from '@/lib/services/affiliate-program'
+import { AFFILIATE_RECURRING_COMMISSION_BPS } from '@/lib/affiliate-config'
 import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -245,7 +246,7 @@ const maybeRecordAffiliateCommission = async (
   const attribution = await resolveAffiliateAttribution(supabase, userId, subscriptionId)
   if (!attribution || attribution.status === 'blocked') return
 
-  const commissionRateBps = 2500
+  const commissionRateBps = AFFILIATE_RECURRING_COMMISSION_BPS
   const commissionAmountCents = Math.floor((invoiceAmountCents * commissionRateBps) / 10000)
   const nowIso = new Date().toISOString()
   const db = supabase as any

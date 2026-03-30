@@ -51,13 +51,13 @@ export type InsiderBet = {
 //   qualification_status != 'excluded'
 //
 // BET must pass all of:
-//   stake_usd >= 10           not dust
+//   stake_usd >= 1000         meaningful bet size
 //   avg_entry_price >= 0.04   not a lottery ticket (>25-1)
 //   avg_entry_price <= 0.92   not near-certainty (tiny upside)
 //   avg_bet_size > 0          needed for conviction ratio
 
 const MIN_PROFIT_FACTOR = 1.1
-const MIN_STAKE_USD = 10
+export const MIN_STAKE_USD = 1000
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
 export const MIN_INSIDER_SCORE = 70
@@ -245,6 +245,7 @@ export async function getInsiderFeed(opts: {
     .from('insider_feed_cache')
     .select(selectFieldsExtended)
     .eq('cached_date', todayET)
+    .gte('stake_usd', MIN_STAKE_USD)
     .gte('insider_score', minScore)
     .order('insider_score', { ascending: false })
     .limit(limit + offset)
@@ -264,6 +265,7 @@ export async function getInsiderFeed(opts: {
       .from('insider_feed_cache')
       .select(selectFieldsLegacy)
       .eq('cached_date', todayET)
+      .gte('stake_usd', MIN_STAKE_USD)
       .gte('insider_score', minScore)
       .order('insider_score', { ascending: false })
       .limit(limit + offset)

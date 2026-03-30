@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
-import { computeInsiderScore } from './polymarket-insider'
+import { computeInsiderScore, MIN_STAKE_USD } from './polymarket-insider'
 import { buildInsiderOddsSnapshots } from './insider-odds-snapshot'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -775,7 +775,8 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
       if (pos.shares < MIN_NET_SHARES) continue
       const avgEntryPrice = pos.costBasis / pos.shares
       if (!Number.isFinite(avgEntryPrice) || avgEntryPrice <= 0) continue
-      // REMOVED: MIN_STAKE_USD filter — let scoring handle it
+      // Hard floor for insider feed visibility.
+      if (pos.costBasis < MIN_STAKE_USD) continue
 
       hasPosition = true
       allPositions.push({
@@ -838,6 +839,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
       .from('insider_feed_cache')
       .select('wallet, slug, outcome')
       .eq('cached_date', todayET)
+      .gte('stake_usd', MIN_STAKE_USD)
       .in('slug', slugsInBatch)
 
     if (existingEntries && Array.isArray(existingEntries)) {
@@ -946,6 +948,15 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     .lt('cached_date', todayET)
   if (purgeErr) console.warn('[InsiderFeed] Purge failed:', purgeErr)
 
+  const { error: lowStakePurgeErr } = await (supabase as any)
+    .from('insider_feed_cache')
+    .delete()
+    .eq('cached_date', todayET)
+    .lt('stake_usd', MIN_STAKE_USD)
+  if (lowStakePurgeErr) {
+    console.warn('[InsiderFeed] Failed to purge low-stake rows:', lowStakePurgeErr)
+  }
+
   // Stamp each row with today's date
   for (const row of scored) {
     (row as any).cached_date = todayET
@@ -968,7 +979,10 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     .from('insider_feed_cache')
     .select('*', { count: 'exact', head: true })
     .eq('cached_date', todayET)
-  console.log(`[InsiderFeed] Total bets in cache for ${todayET}: ${totalCached ?? '?'}`)
+    .gte('stake_usd', MIN_STAKE_USD)
+  console.log(
+    `[InsiderFeed] Total bets in cache for ${todayET} (>= $${MIN_STAKE_USD}): ${totalCached ?? '?'}`
+  )
 
   return {
     walletsWithBets,

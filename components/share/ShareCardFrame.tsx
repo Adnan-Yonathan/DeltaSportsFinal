@@ -11,9 +11,11 @@ const FONT_STACK =
 type ShareCardFrameProps = {
   children: ReactNode
   accent?: 'emerald' | 'cyan'
+  height?: number
 }
 
-export function ShareCardFrame({ children, accent = 'emerald' }: ShareCardFrameProps) {
+export function ShareCardFrame({ children, accent = 'emerald', height }: ShareCardFrameProps) {
+  const frameHeight = height ?? FRAME_HEIGHT
   const accentGlow =
     accent === 'cyan'
       ? 'radial-gradient(circle at 12% 8%, rgba(16, 185, 129, 0.22), transparent 42%)'
@@ -23,7 +25,7 @@ export function ShareCardFrame({ children, accent = 'emerald' }: ShareCardFrameP
     <div
       style={{
         width: FRAME_WIDTH,
-        height: FRAME_HEIGHT,
+        height: frameHeight,
         position: 'relative',
         overflow: 'hidden',
         color: '#ffffff',

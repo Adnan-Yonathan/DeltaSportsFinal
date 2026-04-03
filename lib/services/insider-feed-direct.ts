@@ -735,12 +735,28 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
 
   // Update buy_trade_count, avg_bet_size, last_refreshed_at on each wallet
   const now = new Date().toISOString()
-  const walletUpdates = walletResults.map(r => ({
-    wallet:          r.wallet,
-    buy_trade_count: r.totalBuys,
-    avg_bet_size:    r.totalBuys > 0 ? Math.round((r.totalBuyNotional / r.totalBuys) * 100) / 100 : 0,
-    last_refreshed_at: now,
-  }))
+  const walletUpdates = walletResults
+    .map(r => {
+      const meta = walletMetaMap.get(r.wallet)
+      if (!meta) return null
+      return {
+        wallet:            r.wallet,
+        // Include required columns so upsert can safely insert if conflict is missed.
+        roi_pct:           meta.roi,
+        volume_usd:        meta.vol,
+        buy_trade_count:   r.totalBuys,
+        avg_bet_size:      r.totalBuys > 0 ? Math.round((r.totalBuyNotional / r.totalBuys) * 100) / 100 : 0,
+        last_refreshed_at: now,
+      }
+    })
+    .filter((row): row is {
+      wallet: string
+      roi_pct: number
+      volume_usd: number
+      buy_trade_count: number
+      avg_bet_size: number
+      last_refreshed_at: string
+    } => Boolean(row))
 
   // Batch update wallet stats
   for (let i = 0; i < walletUpdates.length; i += 500) {
@@ -955,6 +971,23 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     .lt('stake_usd', MIN_STAKE_USD)
   if (lowStakePurgeErr) {
     console.warn('[InsiderFeed] Failed to purge low-stake rows:', lowStakePurgeErr)
+  }
+
+  // Remove settled markets discovered in this run so the read path does not
+  // keep surfacing same-day stale entries.
+  if (settledSlugs.size > 0) {
+    const settledSlugList = [...settledSlugs]
+    for (let i = 0; i < settledSlugList.length; i += 500) {
+      const chunk = settledSlugList.slice(i, i + 500)
+      const { error: settledPurgeErr } = await (supabase as any)
+        .from('insider_feed_cache')
+        .delete()
+        .eq('cached_date', todayET)
+        .in('slug', chunk)
+      if (settledPurgeErr) {
+        console.warn('[InsiderFeed] Failed to purge settled rows chunk:', settledPurgeErr)
+      }
+    }
   }
 
   // Stamp each row with today's date

@@ -241,6 +241,10 @@ export async function getInsiderFeed(opts: {
     'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
     'wallet_trade_count, current_price, current_american_odds, consensus_count'
 
+  // Scan a larger candidate set before settling-filter; otherwise top-scored
+  // settled rows can crowd out active rows and produce empty results.
+  const candidateLimit = Math.max(limit + offset, 1200)
+
   let query = (supabase as any)
     .from('insider_feed_cache')
     .select(selectFieldsExtended)
@@ -248,7 +252,7 @@ export async function getInsiderFeed(opts: {
     .gte('stake_usd', MIN_STAKE_USD)
     .gte('insider_score', minScore)
     .order('insider_score', { ascending: false })
-    .limit(limit + offset)
+    .limit(candidateLimit)
 
   if (sport && sport !== 'ALL') {
     query = query.eq('sport_label', sport)
@@ -268,7 +272,7 @@ export async function getInsiderFeed(opts: {
       .gte('stake_usd', MIN_STAKE_USD)
       .gte('insider_score', minScore)
       .order('insider_score', { ascending: false })
-      .limit(limit + offset)
+      .limit(candidateLimit)
     if (sport && sport !== 'ALL') {
       fallbackQuery = fallbackQuery.eq('sport_label', sport)
     }
@@ -290,7 +294,7 @@ export async function getInsiderFeed(opts: {
   )
   const filtered = minStakeRows.filter((row) => !settledSlugs.has(String(row.slug ?? '')))
 
-  const mapped = filtered.slice(offset).map((row): InsiderBet => ({
+  const mapped = filtered.slice(offset, offset + limit).map((row): InsiderBet => ({
     wallet:                  row.wallet,
     pseudonym:               row.pseudonym               ?? null,
     profile_image_url:       row.profile_image_url       ?? null,

@@ -7,6 +7,11 @@ import {
   prepareAffiliateAttribution,
   resolveAffiliateCodeFromRequest,
 } from '@/lib/services/affiliate-program'
+import {
+  buildCheckoutAttributionMetadata,
+  persistAttributionTouches,
+  resolveAttributionSnapshotFromRequest,
+} from '@/lib/services/attribution'
 
 export const runtime = 'nodejs'
 
@@ -114,10 +119,13 @@ export async function POST(req: NextRequest) {
       : `${origin}/pricing`
 
     const isTrialEligible = Boolean(planConfig.trialDays) && !hasUsedTrial
+    const serviceSupabase = createServiceClient()
+    const attributionSnapshot = resolveAttributionSnapshotFromRequest(req)
+    await persistAttributionTouches(serviceSupabase as any, user.id, attributionSnapshot)
+    const attributionMetadata = buildCheckoutAttributionMetadata(attributionSnapshot)
     const affiliateCode = resolveAffiliateCodeFromRequest(req)
     let affiliateMetadata: Record<string, string> = {}
     if (affiliateCode) {
-      const serviceSupabase = createServiceClient()
       const attribution = await prepareAffiliateAttribution({
         supabase: serviceSupabase as any,
         referredUserId: user.id,
@@ -138,6 +146,7 @@ export async function POST(req: NextRequest) {
         plan_key: resolvedPlanKey,
         plan_version: '2',
         ...affiliateMetadata,
+        ...attributionMetadata,
       },
       ...(isTrialEligible
         ? { trial_period_days: planConfig.trialDays }
@@ -162,6 +171,7 @@ export async function POST(req: NextRequest) {
         plan_key: resolvedPlanKey,
         plan_version: '2',
         ...affiliateMetadata,
+        ...attributionMetadata,
       },
     })
 

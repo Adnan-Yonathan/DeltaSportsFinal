@@ -11,6 +11,7 @@ type CheckoutContext = {
   hasUsedTrial: boolean
   affiliateCode?: string | null
   affiliateAttributionId?: string | null
+  attributionMetadata?: Record<string, string>
 }
 
 export const resolveCheckoutPlan = (planKey: PlanKey) => {
@@ -93,6 +94,7 @@ export const buildSubscriptionData = (
     ...(context.affiliateAttributionId
       ? { affiliate_attribution_id: context.affiliateAttributionId }
       : {}),
+    ...(context.attributionMetadata || {}),
   },
   ...(context.planConfig.trialDays && !context.hasUsedTrial
     ? { trial_period_days: context.planConfig.trialDays }
@@ -116,6 +118,7 @@ export const buildCheckoutSessionMetadata = (context: CheckoutContext) => ({
   ...(context.affiliateAttributionId
     ? { affiliate_attribution_id: context.affiliateAttributionId }
     : {}),
+  ...(context.attributionMetadata || {}),
 })
 
 export const buildCheckoutContext = async (

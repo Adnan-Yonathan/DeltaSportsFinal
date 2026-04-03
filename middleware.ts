@@ -8,6 +8,7 @@ import {
   shouldStartPrecheckoutOnboarding,
 } from '@/lib/trial-flow'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
+import { applyAttributionCookies } from '@/lib/attribution'
 
 // Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
@@ -41,6 +42,7 @@ const ALWAYS_PUBLIC_PREFIXES = [
   '/market-projections',
   '/sharp-props',
   '/odds-screen',
+  '/attribution',
 ]
 
 const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [
@@ -131,6 +133,7 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   const isAffiliatePath = pathname === '/affiliate' || pathname.startsWith('/affiliate/')
   const guidePathForToolRoute = resolveGuidePathForToolRoute(pathname)
+  const withAttribution = (response: NextResponse) => applyAttributionCookies(req, response)
   const isPrefetchRequest =
     req.headers.get('purpose') === 'prefetch' ||
     req.headers.has('next-router-prefetch')
@@ -138,11 +141,11 @@ export async function middleware(req: NextRequest) {
   // Avoid caching auth redirects from speculative prefetch requests.
   // Actual navigations still go through the full auth/membership checks below.
   if (isPrefetchRequest) {
-    return res
+    return withAttribution(res)
   }
 
   if (isAlwaysPublicPath(pathname)) {
-    return res
+    return withAttribution(res)
   }
 
   const isSessionAwarePublicPath = SESSION_AWARE_PUBLIC_PATHS.some(
@@ -151,7 +154,7 @@ export async function middleware(req: NextRequest) {
 
   // Allow public paths (but not session-aware public paths, which need the auth check below)
   if (isPublicPath(pathname) && !isSessionAwarePublicPath) {
-    return res
+    return withAttribution(res)
   }
 
   const supabase = createMiddlewareClient({ req, res })
@@ -162,19 +165,19 @@ export async function middleware(req: NextRequest) {
   // For session-aware public paths (/welcome, /pricing, /checkout), allow access if no session
   // but continue to the auth and membership checks if there IS a session.
   if (isSessionAwarePublicPath && !session) {
-    return res
+    return withAttribution(res)
   }
 
   // If no session, redirect to login
   if (!session) {
     if (guidePathForToolRoute) {
       const guideUrl = new URL(guidePathForToolRoute, req.url)
-      return NextResponse.redirect(guideUrl)
+      return withAttribution(NextResponse.redirect(guideUrl))
     }
 
     const landingUrl = new URL('/welcome', req.url)
     landingUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(landingUrl)
+    return withAttribution(NextResponse.redirect(landingUrl))
   }
 
   // Use session metadata from the JWT cookie (no API call).
@@ -216,54 +219,54 @@ export async function middleware(req: NextRequest) {
     pathname === '/trial-onboarding' || pathname.startsWith('/trial-onboarding/')
   if (isTrialOnboardingPath) {
     if (isPaid) {
-      return NextResponse.redirect(new URL('/', req.url))
+      return withAttribution(NextResponse.redirect(new URL('/', req.url)))
     }
     if (canAccessPrecheckoutOnboarding(membership, effectiveMetadata)) {
-      return res
+      return withAttribution(res)
     }
-    return NextResponse.redirect(new URL('/checkout', req.url))
+    return withAttribution(NextResponse.redirect(new URL('/checkout', req.url)))
   }
 
   if (isAffiliatePath) {
-    return res
+    return withAttribution(res)
   }
 
   if (shouldStartPrecheckoutOnboarding(membership, effectiveMetadata)) {
-    return NextResponse.redirect(new URL('/trial-onboarding', req.url))
+    return withAttribution(NextResponse.redirect(new URL('/trial-onboarding', req.url)))
   }
 
   const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
   if (isOnboardingPath) {
     if (!isPaid) {
-      return NextResponse.redirect(new URL('/checkout', req.url))
+      return withAttribution(NextResponse.redirect(new URL('/checkout', req.url)))
     }
-    return res
+    return withAttribution(res)
   }
 
   if (isPaid) {
     if (pathname === '/welcome' || pathname === '/pricing') {
-      return NextResponse.redirect(new URL('/chat', req.url))
+      return withAttribution(NextResponse.redirect(new URL('/chat', req.url)))
     }
-    return res
+    return withAttribution(res)
   }
 
   if (guidePathForToolRoute) {
-    return NextResponse.redirect(new URL(guidePathForToolRoute, req.url))
+    return withAttribution(NextResponse.redirect(new URL(guidePathForToolRoute, req.url)))
   }
 
   // If they cancel checkout or choose not to continue, let them stay on the landing page.
   if (pathname === '/welcome') {
-    return res
+    return withAttribution(res)
   }
 
   // Unpaid users can stay on pricing or checkout.
   if (!isPaid && (pathname.startsWith('/pricing') || pathname.startsWith('/checkout'))) {
-    return res
+    return withAttribution(res)
   }
 
   // If not an active member, redirect to pricing
   const pricingUrl = new URL('/pricing', req.url)
-  return NextResponse.redirect(pricingUrl)
+  return withAttribution(NextResponse.redirect(pricingUrl))
 }
 
 export const config = {

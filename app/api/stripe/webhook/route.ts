@@ -4,6 +4,10 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { updateUserSubscriptionState } from '@/lib/stripe-user-subscription'
 import { prepareAffiliateAttribution } from '@/lib/services/affiliate-program'
 import { AFFILIATE_RECURRING_COMMISSION_BPS } from '@/lib/affiliate-config'
+import {
+  syncTrialAttributionStatusBySubscription,
+  upsertTrialAttributionFromCheckoutSession,
+} from '@/lib/services/attribution'
 import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -404,6 +408,12 @@ export async function POST(req: NextRequest) {
           subscriptionStatus,
           customerId
         )
+        await upsertTrialAttributionFromCheckoutSession(supabase as any, {
+          userId,
+          session,
+          subscriptionStatus,
+          stripeCustomerId: customerId,
+        })
         await syncAffiliateAttributionStatus(
           supabase,
           userId,
@@ -455,6 +465,11 @@ export async function POST(req: NextRequest) {
           subscription.status || 'pending',
           customerId
         )
+        await syncTrialAttributionStatusBySubscription(supabase as any, {
+          subscriptionId: subscription.id,
+          status: subscription.status || 'pending',
+          stripeCustomerId: customerId,
+        })
 
         console.log(`[STRIPE_WEBHOOK] Subscription ${event.type} for user ${resolvedUserId ?? 'unknown'}`)
         break
@@ -481,6 +496,11 @@ export async function POST(req: NextRequest) {
             'canceled',
             customerId
           )
+          await syncTrialAttributionStatusBySubscription(supabase as any, {
+            subscriptionId: subscription.id,
+            status: 'canceled',
+            stripeCustomerId: customerId,
+          })
           if (subscription.latest_invoice) {
             try {
               const invoice = await stripe.invoices.retrieve(
@@ -543,6 +563,11 @@ export async function POST(req: NextRequest) {
               'past_due',
               customerId
             )
+            await syncTrialAttributionStatusBySubscription(supabase as any, {
+              subscriptionId: subscription.id,
+              status: 'past_due',
+              stripeCustomerId: customerId,
+            })
             console.log(`[STRIPE_WEBHOOK] Payment failed for user ${userId}`)
           }
         }
@@ -594,6 +619,11 @@ export async function POST(req: NextRequest) {
               subscription.status || 'active',
               customerId
             )
+            await syncTrialAttributionStatusBySubscription(supabase as any, {
+              subscriptionId: subscription.id,
+              status: subscription.status || 'active',
+              stripeCustomerId: customerId,
+            })
             await maybeRecordAffiliateCommission(
               supabase,
               userId,

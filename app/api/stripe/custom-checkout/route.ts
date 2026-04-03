@@ -12,6 +12,11 @@ import {
   prepareAffiliateAttribution,
   resolveAffiliateCodeFromRequest,
 } from '@/lib/services/affiliate-program'
+import {
+  buildCheckoutAttributionMetadata,
+  persistAttributionTouches,
+  resolveAttributionSnapshotFromRequest,
+} from '@/lib/services/attribution'
 
 export const runtime = 'nodejs'
 
@@ -27,6 +32,10 @@ export async function POST(req: NextRequest) {
     }
 
     const checkoutContext = await buildCheckoutContext(supabase, user, planKey)
+    const serviceSupabase = createServiceClient()
+    const attributionSnapshot = resolveAttributionSnapshotFromRequest(req)
+    await persistAttributionTouches(serviceSupabase as any, user.id, attributionSnapshot)
+    const attributionMetadata = buildCheckoutAttributionMetadata(attributionSnapshot)
     const affiliateCode = resolveAffiliateCodeFromRequest(req)
     let affiliateContext: {
       affiliateCode?: string | null
@@ -34,7 +43,6 @@ export async function POST(req: NextRequest) {
     } = {}
 
     if (affiliateCode) {
-      const serviceSupabase = createServiceClient()
       const attribution = await prepareAffiliateAttribution({
         supabase: serviceSupabase as any,
         referredUserId: user.id,
@@ -52,6 +60,7 @@ export async function POST(req: NextRequest) {
     const checkoutContextWithAffiliate = {
       ...checkoutContext,
       ...affiliateContext,
+      attributionMetadata,
     }
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 

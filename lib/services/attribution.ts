@@ -18,6 +18,8 @@ export type AttributionSnapshot = {
   lastTouch: AttributionTouch | null
 }
 
+export type AttributionEventName = 'page_view' | 'stripe_portal_opened'
+
 const toStripeString = (value: string | null | undefined, fallback = '') => {
   if (!value) return fallback
   return value.slice(0, 500)
@@ -85,7 +87,7 @@ export const buildCheckoutAttributionMetadata = (snapshot: AttributionSnapshot):
 
 export const persistAttributionTouches = async (
   supabase: any,
-  userId: string,
+  userId: string | null | undefined,
   snapshot: AttributionSnapshot
 ) => {
   if (!snapshot.sessionId) return
@@ -107,6 +109,50 @@ export const persistAttributionTouches = async (
 
   if (error) {
     console.warn('[ATTRIBUTION] Failed to persist attribution touches:', error)
+  }
+}
+
+export const persistAttributionEvent = async (
+  supabase: any,
+  params: {
+    eventName: AttributionEventName
+    snapshot: AttributionSnapshot
+    userId?: string | null
+    stripeCustomerId?: string | null
+    landingPath?: string | null
+    metadata?: Record<string, unknown>
+  }
+) => {
+  const db = supabase as any
+  if (!params.snapshot.sessionId) return
+
+  const touch = params.snapshot.selectedTouch || params.snapshot.lastTouch || params.snapshot.firstTouch
+  const occurredAt = new Date().toISOString()
+  const payload: Record<string, unknown> = {
+    session_id: params.snapshot.sessionId,
+    user_id: params.userId ?? null,
+    event_name: params.eventName,
+    stripe_customer_id: params.stripeCustomerId ?? null,
+    channel: touch?.channel || 'unknown',
+    source: touch?.source || null,
+    medium: touch?.medium || null,
+    campaign: touch?.campaign || null,
+    term: touch?.term || null,
+    content: touch?.content || null,
+    referrer_host: touch?.referrerHost || null,
+    landing_path: params.landingPath || touch?.landingPath || '/',
+    affiliate_code: touch?.affiliateCode || null,
+    metadata: {
+      touch_model: params.snapshot.touchModel,
+      ...(params.metadata || {}),
+    },
+    occurred_at: occurredAt,
+    created_at: occurredAt,
+  }
+
+  const { error } = await db.from('attribution_events').insert(payload)
+  if (error) {
+    console.warn('[ATTRIBUTION] Failed to persist attribution event:', error)
   }
 }
 

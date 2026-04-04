@@ -432,9 +432,9 @@ export const resolveTouchesFromStripeMetadata = (metadata: Record<string, string
   lastTouch: touchFromMetadata('attr_last', metadata),
 })
 
-export const mapTouchToRecord = (touchKind: TouchKind, userId: string, touch: AttributionTouch) => ({
+export const mapTouchToRecord = (touchKind: TouchKind, userId: string | null | undefined, touch: AttributionTouch) => ({
   session_id: touch.sessionId,
-  user_id: userId,
+  user_id: userId ?? null,
   touch_kind: touchKind,
   channel: touch.channel,
   source: touch.source,

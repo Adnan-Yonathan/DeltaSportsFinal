@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { stripe } from '@/lib/stripe'
+import {
+  persistAttributionEvent,
+  persistAttributionTouches,
+  resolveAttributionSnapshotFromRequest,
+} from '@/lib/services/attribution'
 
 export const runtime = 'nodejs'
 
@@ -29,6 +35,19 @@ export async function POST(req: NextRequest) {
 
     const origin =
       req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const serviceSupabase = createServiceClient()
+    const attributionSnapshot = resolveAttributionSnapshotFromRequest(req)
+    await persistAttributionTouches(serviceSupabase as any, user.id, attributionSnapshot)
+    await persistAttributionEvent(serviceSupabase as any, {
+      eventName: 'stripe_portal_opened',
+      snapshot: attributionSnapshot,
+      userId: user.id,
+      stripeCustomerId: customerId,
+      landingPath: '/api/stripe/billing-portal',
+      metadata: {
+        flow: flow || 'payment_method_update',
+      },
+    })
 
     // Requires STRIPE_SECRET_KEY plus the Stripe Billing Portal feature enabled in the dashboard.
     const session = await stripe.billingPortal.sessions.create({

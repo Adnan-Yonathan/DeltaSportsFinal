@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { stripe } from '@/lib/stripe'
+import {
+  persistAttributionEvent,
+  persistAttributionTouches,
+  resolveAttributionSnapshotFromRequest,
+} from '@/lib/services/attribution'
 
 export const runtime = 'nodejs'
 
@@ -24,6 +30,19 @@ export async function POST(req: NextRequest) {
     const origin =
       req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     const returnUrl = `${origin}/billing?payment_method_updated=1`
+    const serviceSupabase = createServiceClient()
+    const attributionSnapshot = resolveAttributionSnapshotFromRequest(req)
+    await persistAttributionTouches(serviceSupabase as any, user.id, attributionSnapshot)
+    await persistAttributionEvent(serviceSupabase as any, {
+      eventName: 'stripe_portal_opened',
+      snapshot: attributionSnapshot,
+      userId: user.id,
+      stripeCustomerId: customerId,
+      landingPath: '/api/stripe/payment-method',
+      metadata: {
+        flow: 'payment_method_update',
+      },
+    })
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import GlobalLeftNav from '@/components/global-left-nav'
 import ConditionalAppFooter from '@/components/conditional-app-footer'
 import MobileMoreButton from '@/components/mobile-more-button'
+import AttributionVisitorTracker from '@/components/attribution/visitor-tracker'
 
 function shouldHideLeftNav(pathname: string) {
   return (
@@ -31,6 +32,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full">
+      <AttributionVisitorTracker />
       {!hideLeftNav ? <GlobalLeftNav /> : null}
       <div
         className={`flex min-h-screen min-w-0 flex-1 flex-col ${

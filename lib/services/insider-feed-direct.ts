@@ -52,6 +52,8 @@ const FETCH_TIMEOUT_MS   = 15_000
 
 const GAMMA_API       = 'https://gamma-api.polymarket.com'
 const MARKET_FETCH_CONCURRENCY = 10
+const EVENT_SPORT_FETCH_CONCURRENCY = 10
+const MAX_EVENT_SPORT_LOOKUPS = 1000
 
 const POSITION_BATCH_SIZE = 200
 
@@ -128,6 +130,13 @@ type TradeEntry = {
   outcome?:      string
 }
 
+type GammaEventEntry = {
+  category?: string | null
+  title?: string | null
+  seriesSlug?: string | null
+  series?: Array<{ slug?: string | null; title?: string | null }>
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const parseNum = (v: unknown): number | null => {
@@ -139,11 +148,78 @@ const normalizeSlug = (value?: string | null): string =>
   String(value ?? '').trim().toLowerCase()
 
 const MLB_TITLE_HINT = /\b(mlb|major league baseball|baseball)\b/i
+const eventSportKeyCache = new Map<string, string | null>()
 
 const sportKeyFromSlug = (slug: string): string | null => {
   const prefix = SPORT_PREFIXES.find((p) => slug.startsWith(p))
   if (!prefix) return null
   return prefix.slice(0, -1)
+}
+
+const resolveTradeEventKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug'>): string =>
+  normalizeSlug(trade.eventSlug) || normalizeSlug(trade.slug)
+
+const resolveSportKeyFromEvent = (event: GammaEventEntry): string | null => {
+  const directSeriesSlug = normalizeSlug(
+    String(event.seriesSlug ?? event.series?.[0]?.slug ?? '')
+  )
+  if (directSeriesSlug) {
+    const directKey = sportKeyFromSlug(`${directSeriesSlug}-`)
+    if (directKey) return directKey
+    if (directSeriesSlug === 'mlb' || directSeriesSlug.includes('baseball')) return 'mlb'
+  }
+
+  const eventSeriesTitle = String(event.series?.[0]?.title ?? '')
+  const eventTitle = String(event.title ?? '')
+  if (MLB_TITLE_HINT.test(`${eventSeriesTitle} ${eventTitle}`)) return 'mlb'
+  return null
+}
+
+async function fetchEventSportKey(eventSlug: string): Promise<string | null> {
+  if (!eventSlug) return null
+  const cached = eventSportKeyCache.get(eventSlug)
+  if (cached !== undefined) return cached
+
+  const url = `${GAMMA_API}/events?slug=${encodeURIComponent(eventSlug)}`
+  const raw = await fetchJson(url)
+  const event = Array.isArray(raw) ? (raw[0] as GammaEventEntry | undefined) : null
+  const sportKey = event ? resolveSportKeyFromEvent(event) : null
+  eventSportKeyCache.set(eventSlug, sportKey)
+  return sportKey
+}
+
+async function buildTradeSportLabelOverrides(
+  trades: TradeEntry[]
+): Promise<Map<string, string>> {
+  const unresolvedEventKeys = new Set<string>()
+  for (const trade of trades) {
+    if (resolveTradeSportKey(trade)) continue
+    const eventKey = resolveTradeEventKey(trade)
+    if (!eventKey) continue
+    unresolvedEventKeys.add(eventKey)
+  }
+
+  if (unresolvedEventKeys.size === 0) return new Map<string, string>()
+
+  const keys = [...unresolvedEventKeys].slice(0, MAX_EVENT_SPORT_LOOKUPS)
+  const overrides = new Map<string, string>()
+
+  for (let i = 0; i < keys.length; i += EVENT_SPORT_FETCH_CONCURRENCY) {
+    const batch = keys.slice(i, i + EVENT_SPORT_FETCH_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (eventKey) => ({
+        eventKey,
+        sportKey: await fetchEventSportKey(eventKey),
+      }))
+    )
+    for (const result of results) {
+      if (!result.sportKey) continue
+      const label = SPORT_LABEL_MAP[result.sportKey]
+      if (label) overrides.set(result.eventKey, label)
+    }
+  }
+
+  return overrides
 }
 
 const resolveTradeSportKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>): string | null => {
@@ -158,10 +234,16 @@ const resolveTradeSportKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'ti
   return null
 }
 
-const sportLabelForTrade = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>): string | null => {
+const sportLabelForTrade = (
+  trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>,
+  overrides?: Map<string, string>
+): string | null => {
   const sportKey = resolveTradeSportKey(trade)
-  if (!sportKey) return null
-  return SPORT_LABEL_MAP[sportKey] ?? null
+  if (sportKey) return SPORT_LABEL_MAP[sportKey] ?? null
+
+  const eventKey = resolveTradeEventKey(trade)
+  if (!eventKey || !overrides) return null
+  return overrides.get(eventKey) ?? null
 }
 
 const sportLabel = (slug: string): string | null => {
@@ -264,9 +346,13 @@ type PositionState = {
   buyCount:       number
 }
 
-function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
+function applyTrade(
+  positions: Map<string, PositionState>,
+  trade: TradeEntry,
+  sportLabelOverrides?: Map<string, string>
+) {
   const slug = normalizeSlug(trade.slug)
-  const tradeSportLabel = sportLabelForTrade(trade)
+  const tradeSportLabel = sportLabelForTrade(trade, sportLabelOverrides)
   if (!slug || !tradeSportLabel) return
 
   const size  = parseNum(trade.size)
@@ -484,15 +570,22 @@ export async function discoverInsiderWallets(): Promise<DiscoveryResult> {
       })
     )
 
+    const reverseTrades = globalTradePages.flatMap((page) =>
+      Array.isArray(page) ? (page as TradeEntry[]) : []
+    )
+    const reverseSportLabelOverrides = await buildTradeSportLabelOverrides(reverseTrades)
+    if (reverseSportLabelOverrides.size > 0) {
+      console.log(
+        `[InsiderFeed] Reverse discovery: recovered sport labels for ${reverseSportLabelOverrides.size} unknown events via Gamma`
+      )
+    }
+
     const newWalletAddresses = new Set<string>()
-    for (const page of globalTradePages) {
-      if (!Array.isArray(page)) continue
-      for (const trade of page as TradeEntry[]) {
-        if (!sportLabelForTrade(trade)) continue
-        const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
-        if (!wallet || qualifiedWallets.has(wallet)) continue
-        newWalletAddresses.add(wallet)
-      }
+    for (const trade of reverseTrades) {
+      if (!sportLabelForTrade(trade, reverseSportLabelOverrides)) continue
+      const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
+      if (!wallet || qualifiedWallets.has(wallet)) continue
+      newWalletAddresses.add(wallet)
     }
 
     console.log(`[InsiderFeed] Reverse discovery: ${newWalletAddresses.size} new sport wallets found`)
@@ -733,6 +826,15 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     walletResults.push(...results)
   }
 
+  const tradeSportLabelOverrides = await buildTradeSportLabelOverrides(
+    walletResults.flatMap((result) => result.trades)
+  )
+  if (tradeSportLabelOverrides.size > 0) {
+    console.log(
+      `[InsiderFeed] Position refresh: recovered sport labels for ${tradeSportLabelOverrides.size} unknown events via Gamma`
+    )
+  }
+
   // Update buy_trade_count, avg_bet_size, last_refreshed_at on each wallet
   const now = new Date().toISOString()
   const walletUpdates = walletResults
@@ -783,7 +885,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
 
   for (const { wallet, trades } of walletResults) {
     const positions = new Map<string, PositionState>()
-    for (const t of trades) applyTrade(positions, t)
+    for (const t of trades) applyTrade(positions, t, tradeSportLabelOverrides)
 
     let hasPosition = false
     for (const pos of positions.values()) {

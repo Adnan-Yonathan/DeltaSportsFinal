@@ -1049,20 +1049,6 @@ function ScreenRoi({
 
 // ─── Screen: Final ────────────────────────────────────────────────────────────
 
-const TESTIMONIALS = [
-  {
-    name: 'Marcus K.',
-    plan: 'Syndicate · 4 months',
-    color: 'emerald',
-    quote: 'Saw an $82K whale alert on the Lakers over. Line moved 2.5 points within 20 minutes. I was already in.',
-  },
-  {
-    name: 'Ryan T.',
-    plan: 'Syndicate · 6 months',
-    color: 'emerald',
-    quote: 'Research Mode took my CLV from +1.1% to +4.3% in 30 days. I finally have a process that works.',
-  },
-]
 
 const TOOLS_LIST: Array<{ icon: ReactNode; title: string; desc: string }> = [
   { icon: <ChartNoAxesCombined className="h-4 w-4" />, title: 'Sharp Projections', desc: 'Edge-ranked spreads, totals, moneylines' },
@@ -1136,27 +1122,6 @@ function ScreenFinal({
         ))}
       </div>
 
-      {/* Testimonials */}
-      <div className="space-y-2">
-        {TESTIMONIALS.map((t) => (
-          <div key={t.name} className="rounded-xl border border-white/8 bg-white/[0.025] p-3.5">
-            <div className="mb-2 flex items-center gap-2.5">
-              <div className={cn(
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black',
-                'bg-emerald-400'
-              )}>
-                {t.name[0]}
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white">{t.name}</div>
-                <div className="text-[10px] text-white/35">{t.plan}</div>
-              </div>
-              <span className="ml-auto text-[10px] text-amber-300">★★★★★</span>
-            </div>
-            <p className="text-xs leading-relaxed text-white/60">"{t.quote}"</p>
-          </div>
-        ))}
-      </div>
 
       {/* Guarantee */}
       <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/6 p-4">

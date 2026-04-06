@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { CinematicLandingHero } from '@/components/ui/cinematic-landing-hero'
+import { HeroSection9 } from '@/components/ui/hero-section-9'
 import { ROICalculator } from '@/components/ui/roi-calculator'
 import { PricingSection } from '@/components/ui/pricing-section'
 import { PRICING_TIERS } from '@/components/pricing/pricing-tiers'
@@ -12,9 +14,19 @@ import { ScrollFadeIn } from '@/components/ui/scroll-fade-in'
 import { ImageAutoSlider } from '@/components/ui/image-auto-slider'
 
 export default function WelcomeLanding() {
+  const [desktopHeroEnabled, setDesktopHeroEnabled] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px) and (pointer: fine)')
+    const update = () => setDesktopHeroEnabled(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
   return (
     <div className="relative min-h-screen overflow-x-clip bg-black text-white">
-      <CinematicLandingHero />
+      {desktopHeroEnabled ? <HeroSection9 /> : <CinematicLandingHero />}
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-4 sm:pt-6">
         {/* Live ticker directly under hero */}

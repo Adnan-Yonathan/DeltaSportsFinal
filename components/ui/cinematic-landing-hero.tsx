@@ -598,7 +598,7 @@ export function CinematicLandingHero({
         <p className="text-white/75 text-base md:text-xl mb-10 max-w-2xl mx-auto font-light leading-relaxed">{ctaDescription}</p>
         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
           <a href="/auth/signup" className="btn-modern-light flex items-center justify-center gap-3 px-8 py-4 rounded-[1.1rem] font-semibold">
-            Start 7-Day Free Trial
+            Get Instant Access
           </a>
           <a href="#features" className="btn-modern-dark flex items-center justify-center gap-3 px-8 py-4 rounded-[1.1rem] font-semibold">
             View Live Signals

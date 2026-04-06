@@ -28,7 +28,7 @@ export default function WelcomeLanding() {
             href="/auth/signup"
             className="flex-1 rounded-xl border border-emerald-300/40 bg-emerald-400/15 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-400/25"
           >
-            Get Free Access
+            Get Instant Access
           </a>
         </div>
 

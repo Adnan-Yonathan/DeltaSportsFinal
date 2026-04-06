@@ -22,6 +22,7 @@ const INJECTED_STYLES = `
   /* Prevent first-paint static headline before intro animation starts */
   .text-track,
   .text-days,
+  .intro-ctas,
   .intro-chart {
     visibility: hidden;
     opacity: 0;
@@ -491,6 +492,7 @@ export function CinematicLandingHero({
     const ctx = gsap.context(() => {
       gsap.set(".text-track", { autoAlpha: 0, y: 26, scale: 0.96 });
       gsap.set(".text-days", { autoAlpha: 0, y: 16, scale: 0.98 });
+      gsap.set(".intro-ctas", { autoAlpha: 0, y: 18, scale: 0.97 });
       if (showIntroChart) {
         gsap.set(".intro-chart", { autoAlpha: 0, y: 22, scale: 0.98 });
       }
@@ -501,9 +503,10 @@ export function CinematicLandingHero({
       const introTl = gsap.timeline({ delay: 0 });
       introTl
         .to(".text-track", { duration: 0.7, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" })
-        .to(".text-days", { duration: 0.62, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" }, "-=0.35");
+        .to(".text-days", { duration: 0.62, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" }, "-=0.35")
+        .to(".intro-ctas", { duration: 0.56, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" }, "-=0.22");
       if (showIntroChart) {
-        introTl.to(".intro-chart", { duration: 0.62, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" }, "-=0.3");
+        introTl.to(".intro-chart", { duration: 0.62, autoAlpha: 1, y: 0, scale: 1, ease: "power3.out" }, "-=0.2");
       }
 
       const counterObj = { value: 0 };
@@ -589,6 +592,20 @@ export function CinematicLandingHero({
           <h1 className="text-days text-silver-matte font-sans text-4xl md:text-7xl lg:text-[6rem] font-extrabold tracking-tighter">
             {tagline2}
           </h1>
+          <div className="intro-ctas mt-6 mb-5 flex w-full max-w-xl flex-col gap-3 px-2 sm:flex-row sm:gap-4">
+            <a
+              href="#features"
+              className="flex-1 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:text-emerald-100"
+            >
+              Features
+            </a>
+            <a
+              href="/auth/signup"
+              className="flex-1 rounded-xl border border-emerald-300/40 bg-emerald-400/15 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-400/25"
+            >
+              Get Instant Access
+            </a>
+          </div>
           {!isLowPerf ? <LineMovementIntroChart /> : null}
         </div>
       ) : null}

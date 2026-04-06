@@ -17,21 +17,6 @@ export default function WelcomeLanding() {
       <CinematicLandingHero />
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-4 sm:pt-6">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 sm:flex-row sm:gap-4">
-          <a
-            href="#features"
-            className="flex-1 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:text-emerald-100"
-          >
-            Features
-          </a>
-          <a
-            href="/auth/signup"
-            className="flex-1 rounded-xl border border-emerald-300/40 bg-emerald-400/15 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-400/25"
-          >
-            Get Instant Access
-          </a>
-        </div>
-
         {/* Live ticker directly under hero */}
         <ScrollFadeIn className="mt-4 sm:mt-6">
           <LiveTicker />

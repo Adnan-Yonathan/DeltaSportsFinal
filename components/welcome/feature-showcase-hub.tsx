@@ -215,7 +215,7 @@ function MobileFeatureCard({ feature }: { feature: Feature }) {
       className="rounded-[1.8rem] border border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] overflow-hidden"
     >
       {/* Screenshot */}
-      <div className="p-4 pb-0">
+      <div className="p-2 pb-0 sm:p-3 sm:pb-0">
         <FeatureScreenshot feature={feature} />
       </div>
 
@@ -286,7 +286,7 @@ export function FeatureShowcaseHub() {
       </div>
 
       {/* ── Desktop: sticky scroll ── */}
-      <div className="hidden lg:grid lg:grid-cols-[1fr_420px] lg:gap-16">
+      <div className="hidden lg:grid lg:grid-cols-[1fr_1fr] lg:gap-12 xl:grid-cols-[1fr_55%] xl:gap-16">
         {/* Left: scroll triggers */}
         <div>
           {FEATURES.map((feature, i) => (
@@ -365,7 +365,7 @@ export function FeatureShowcaseHub() {
       </div>
 
       {/* ── Mobile: stacked cards ── */}
-      <div className="space-y-5 lg:hidden">
+      <div className="space-y-6 lg:hidden">
         {FEATURES.map((feature) => (
           <MobileFeatureCard key={feature.id} feature={feature} />
         ))}

@@ -1,18 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Activity, Radar, LineChart, ShieldCheck, Zap, Target, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-const partnerMarks = [
-  { label: 'Signal', icon: Activity },
-  { label: 'Whale', icon: Radar },
-  { label: 'Lines', icon: LineChart },
-  { label: 'Risk', icon: ShieldCheck },
-  { label: 'Edge', icon: Zap },
-  { label: 'Target', icon: Target },
-  { label: 'Data', icon: BarChart3 },
-]
 
 export function HeroSection9() {
   return (
@@ -75,24 +64,6 @@ export function HeroSection9() {
           </div>
         </section>
 
-        <section className="relative z-10 border-t border-white/10 bg-black py-14">
-          <div className="mx-auto max-w-6xl px-6">
-            <h2 className="text-center text-lg font-medium text-zinc-100">
-              Built for bettors who care about speed, signal quality, and execution.
-            </h2>
-            <div className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-x-10 gap-y-6">
-              {partnerMarks.map((mark) => {
-                const Icon = mark.icon
-                return (
-                  <div key={mark.label} className="flex items-center gap-2 text-zinc-300">
-                    <Icon className="h-5 w-5 text-emerald-300" />
-                    <span className="text-sm font-medium">{mark.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
       </main>
     </div>
   )

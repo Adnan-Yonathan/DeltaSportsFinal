@@ -38,7 +38,7 @@ export default function WelcomeLanding() {
           <ScrollFadeIn className="mt-10 sm:mt-14">
             <div className="mb-4 text-center sm:mb-6">
               <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Public, Verified Results
+                The Proof Is in the Profit
               </h2>
             </div>
             <ImageAutoSlider />

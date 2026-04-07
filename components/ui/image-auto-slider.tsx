@@ -6,12 +6,18 @@ const BET_PROOF_IMAGES = [
   "/betproof/IMG_8459.PNG",
   "/betproof/IMG_8460.PNG",
   "/betproof/IMG_8461.PNG",
+  "/test1.png",
   "/betproof/IMG_8462.PNG",
   "/betproof/IMG_8463.PNG",
+  "/test2.png",
   "/betproof/IMG_8464.PNG",
+  "/test3.png",
   "/betproof/IMG_8465.PNG",
+  "/test4.jpg",
   "/betproof/IMG_8466.PNG",
+  "/test5.PNG",
   "/betproof/IMG_8467.PNG",
+  "/test6.png",
 ];
 
 export const ImageAutoSlider = () => {

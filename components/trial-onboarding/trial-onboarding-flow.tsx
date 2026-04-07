@@ -48,6 +48,7 @@ type ScreenId =
   | 'name'
   | 'experience'
   | 'goals'
+  | 'social-proof'
   | 'projections'
   | 'props'
   | 'whale'
@@ -58,16 +59,17 @@ type ScreenId =
 // ─── Screen registry ──────────────────────────────────────────────────────────
 
 const SCREENS: Array<{ id: ScreenId; label: string; progress: number; cta: string }> = [
-  { id: 'welcome',     label: 'Welcome',      progress: 0,   cta: "Let's get started →" },
-  { id: 'name',        label: 'Step 1 of 10', progress: 10,  cta: 'Continue →' },
-  { id: 'experience',  label: 'Step 2 of 10', progress: 20,  cta: 'Continue →' },
-  { id: 'goals',       label: 'Step 3 of 10', progress: 30,  cta: 'Continue →' },
-  { id: 'projections', label: 'Step 4 of 10', progress: 40,  cta: 'Next tool →' },
-  { id: 'props',       label: 'Step 5 of 10', progress: 50,  cta: 'Next tool →' },
-  { id: 'whale',       label: 'Step 6 of 10', progress: 60,  cta: 'Next tool →' },
-  { id: 'research',    label: 'Step 7 of 10', progress: 70,  cta: 'Calculate my edge →' },
-  { id: 'roi',         label: 'Step 8 of 10', progress: 80,  cta: 'See what I get →' },
-  { id: 'final',       label: 'Step 10 of 10', progress: 100, cta: 'Start my free trial →' },
+  { id: 'welcome',      label: 'Welcome',       progress: 0,   cta: "Let's get started →" },
+  { id: 'name',         label: 'Step 1 of 11',  progress: 9,   cta: 'Continue →' },
+  { id: 'experience',   label: 'Step 2 of 11',  progress: 18,  cta: 'Continue →' },
+  { id: 'goals',        label: 'Step 3 of 11',  progress: 27,  cta: 'Continue →' },
+  { id: 'social-proof', label: 'Step 4 of 11',  progress: 36,  cta: 'Continue →' },
+  { id: 'projections',  label: 'Step 5 of 11',  progress: 45,  cta: 'Next tool →' },
+  { id: 'props',        label: 'Step 6 of 11',  progress: 55,  cta: 'Next tool →' },
+  { id: 'whale',        label: 'Step 7 of 11',  progress: 64,  cta: 'Next tool →' },
+  { id: 'research',     label: 'Step 8 of 11',  progress: 73,  cta: 'Calculate my edge →' },
+  { id: 'roi',          label: 'Step 9 of 11',  progress: 82,  cta: 'See what I get →' },
+  { id: 'final',        label: 'Step 11 of 11', progress: 100, cta: 'Start my free trial →' },
 ]
 
 // ─── Sync draft to sessionStorage ────────────────────────────────────────────
@@ -514,6 +516,61 @@ function ScreenGoals({
   )
 }
 
+// ─── Screen: Social Proof ────────────────────────────────────────────────────
+
+const SOCIAL_PROOF_SLIDES = [
+  { src: '/test5.PNG', name: 'Mehalie', stat: '+8.4u · +18.74% ROI', caption: '"Incredible work on Delta!!"' },
+  { src: '/test6.png', name: 'Readysetgo', stat: '2-0 day', caption: '"FEELING GOOD"' },
+  { src: '/test3.png', name: 'Leader', stat: '+$691.79', caption: '"shoutout SGA · oooweeee"' },
+]
+
+function ScreenSocialProof({ rm }: { rm: boolean }) {
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <div className="mb-1.5">
+          <Pill>Step 4 of 11</Pill>
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-white">Real members. Real results.</h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          These are actual screenshots from the Delta community — unedited.
+        </p>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory scrollbar-hide">
+        {SOCIAL_PROOF_SLIDES.map((slide, i) => (
+          <motion.div
+            key={slide.name}
+            initial={rm ? {} : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 + i * 0.12 }}
+            className="min-w-[240px] max-w-[260px] flex-shrink-0 snap-center rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden"
+          >
+            <div className="relative aspect-[4/5] w-full overflow-hidden">
+              <img
+                src={slide.src}
+                alt={`${slide.name} results`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div className="p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">{slide.name}</span>
+                <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">{slide.stat}</span>
+              </div>
+              <p className="mt-1 text-[11px] italic text-white/45">{slide.caption}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <InfoCallout>
+        Delta members share results daily in our community. These aren&apos;t cherry-picked — they&apos;re from the last 2 weeks.
+      </InfoCallout>
+    </div>
+  )
+}
+
 // ─── Shared mockup card ────────────────────────────────────────────────────────
 
 function MockupShell({
@@ -567,7 +624,7 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill>Step 4 of 10</Pill>
+          <Pill>Step 5 of 11</Pill>
           <ChartNoAxesCombined className="h-4 w-4 text-emerald-300" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Sharp Projections</h2>
@@ -678,7 +735,7 @@ function ScreenProps({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill>Step 5 of 10</Pill>
+          <Pill>Step 6 of 11</Pill>
           <Activity className="h-4 w-4 text-emerald-400/60" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Sharp Props</h2>
@@ -784,7 +841,7 @@ function ScreenWhale({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill>Step 6 of 10</Pill>
+          <Pill>Step 7 of 11</Pill>
           <Waves className="h-4 w-4 text-emerald-300" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Whale Feed</h2>
@@ -871,7 +928,7 @@ function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolea
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill>Step 7 of 10</Pill>
+          <Pill>Step 8 of 11</Pill>
           <FlaskConical className="h-4 w-4 text-emerald-400/60" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Research Mode</h2>
@@ -969,7 +1026,7 @@ function ScreenRoi({
     <div className="flex flex-col gap-5">
       <div>
         <div className="mb-1.5">
-          <Pill>Step 8 of 10</Pill>
+          <Pill>Step 9 of 11</Pill>
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">
           {draft.name ? `${draft.name.split(' ')[0]}, how much do you bet?` : 'How much do you bet?'}
@@ -1350,8 +1407,9 @@ export default function TrialOnboardingFlow() {
               {screen.id === 'welcome'     && <ScreenWelcome rm={rm} />}
               {screen.id === 'name'        && <ScreenName draft={draft} onName={handleName} rm={rm} />}
               {screen.id === 'experience'  && <ScreenExperience draft={draft} onSelect={handleExperience} rm={rm} />}
-              {screen.id === 'goals'       && <ScreenGoals draft={draft} onToggle={handleGoalToggle} rm={rm} />}
-              {screen.id === 'projections' && <ScreenProjections draft={draft} rm={rm} />}
+              {screen.id === 'goals'        && <ScreenGoals draft={draft} onToggle={handleGoalToggle} rm={rm} />}
+              {screen.id === 'social-proof' && <ScreenSocialProof rm={rm} />}
+              {screen.id === 'projections'  && <ScreenProjections draft={draft} rm={rm} />}
               {screen.id === 'props'       && <ScreenProps draft={draft} rm={rm} />}
               {screen.id === 'whale'       && <ScreenWhale draft={draft} rm={rm} />}
               {screen.id === 'research'    && <ScreenResearch draft={draft} rm={rm} />}

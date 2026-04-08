@@ -1027,11 +1027,11 @@ export default function PropOrderbooksPanel({
   const [selectedSport, setSelectedSport] = useState<string>(sport)
   const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
   const [search, setSearch] = useState("")
-  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("evenish")
+  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
   const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
   const [sideFilter, setSideFilter] = useState<SideFilter>("all")
-  const [minOdds, setMinOdds] = useState<string>("-150")
-  const [maxOdds, setMaxOdds] = useState<string>("150")
+  const [minOdds, setMinOdds] = useState<string>("")
+  const [maxOdds, setMaxOdds] = useState<string>("")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     initialData?.items?.[0]?.id ?? null
   )
@@ -1178,11 +1178,11 @@ export default function PropOrderbooksPanel({
     setPlayerHeadshotsByKey({})
     setHeadshotLoadingByKey({})
     setSearch("")
-    setOddsPreset("evenish")
+    setOddsPreset("all")
     setSelectedBookFilter("all")
     setSideFilter("all")
-    setMinOdds("-150")
-    setMaxOdds("150")
+    setMinOdds("")
+    setMaxOdds("")
   }, [initialData, sport])
 
   useEffect(() => {

@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       normalizedDepth === DEFAULT_PROP_ORDERBOOKS_DEPTH &&
       normalizedMinSharpNotional === DEFAULT_PROP_ORDERBOOKS_MIN_SHARP_NOTIONAL
 
-    if (canUsePersistentCache && !forceRefresh) {
+    if (canUsePersistentCache && !forceRefresh && mode === 'fast') {
       const persisted = await readPersistedPropOrderbooksSnapshot({
         sport,
         depth: normalizedDepth,

@@ -1667,6 +1667,17 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         ? Math.min(Math.max(requestedLimit + 20, requestedLimit), 110)
         : Math.min(Math.max(requestedLimit * 3, requestedLimit), 360)
       : requestedLimit
+  const allKalshiSports =
+    sportFilter === 'all'
+      ? Array.from(new Set(KALSHI_PROP_SERIES.map((series) => series.sportKey)))
+      : []
+  const kalshiPerSportCollectionLimit =
+    sportFilter === 'all' && allKalshiSports.length > 0
+      ? Math.max(
+          Math.ceil(collectionLimit / allKalshiSports.length),
+          useLightCollection ? 24 : 64
+        )
+      : collectionLimit
   const cacheKey = `${sportFilter}:${requestedLimit}:${depth}:${minSharpNotional}:${mode}`
 
   const inFlight = orderbooksInFlight.get(cacheKey)
@@ -1688,6 +1699,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     const polymarketConcurrency = useLightCollection ? 8 : 4
 
     const kalshiItems: PropOrderbookItem[] = []
+    const kalshiSportCounts = new Map<string, number>()
     const polymarketItems: PropOrderbookItem[] = []
     const exchangeItems = await fetchExchangePropOrderbookItems({
       sportFilter,
@@ -1814,6 +1826,13 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     let kalshiMarketFetches = 0
     for (const series of KALSHI_PROP_SERIES) {
       if (sportFilter !== 'all' && series.sportKey !== sportFilter) continue
+      const collectedForSport = kalshiSportCounts.get(series.sportKey) ?? 0
+      if (
+        sportFilter === 'all' &&
+        collectedForSport >= kalshiPerSportCollectionLimit
+      ) {
+        continue
+      }
       if (kalshiItems.length >= collectionLimit) break
       if (kalshiMarketFetches >= kalshiMarketBudget) break
 
@@ -1826,20 +1845,45 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       if (remaining <= 0) break
       const remainingBudget = kalshiMarketBudget - kalshiMarketFetches
       if (remainingBudget <= 0) break
+      const sportRemaining =
+        sportFilter === 'all'
+          ? Math.max(0, kalshiPerSportCollectionLimit - collectedForSport)
+          : remaining
+      if (sportRemaining <= 0) continue
       const seriesCap = useLightCollection
-        ? Math.min(upcoming.length, Math.max(remaining, 12), remainingBudget, 12)
-        : Math.min(upcoming.length, Math.max(remaining * 2, remaining), 80)
+        ? Math.min(
+            upcoming.length,
+            Math.max(Math.min(remaining, sportRemaining), 8),
+            remainingBudget,
+            12
+          )
+        : sportFilter === 'all'
+          ? Math.min(
+              upcoming.length,
+              Math.max(Math.min(remaining, sportRemaining), 10),
+              remainingBudget,
+              40
+            )
+          : Math.min(upcoming.length, Math.max(remaining * 2, remaining), 80)
       const candidates = upcoming.slice(0, seriesCap)
       kalshiMarketFetches += candidates.length
       const built = await mapWithConcurrency(candidates, kalshiConcurrency, (market) =>
         buildKalshiItem(series, market)
       )
       if (built.length) {
-        kalshiItems.push(...built)
-        if (kalshiItems.length > collectionLimit) {
-          kalshiItems.length = collectionLimit
-          break
+        let nextSportCount = collectedForSport
+        for (const item of built) {
+          if (kalshiItems.length >= collectionLimit) break
+          if (
+            sportFilter === 'all' &&
+            nextSportCount >= kalshiPerSportCollectionLimit
+          ) {
+            break
+          }
+          kalshiItems.push(item)
+          nextSportCount += 1
         }
+        kalshiSportCounts.set(series.sportKey, nextSportCount)
       }
     }
 

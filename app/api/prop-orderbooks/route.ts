@@ -134,6 +134,7 @@ export async function GET(req: NextRequest) {
       todayKey,
     })
     const canUsePersistedResponse =
+      mode === 'fast' &&
       Boolean(persistedFallback) &&
       (sport === 'all' || persistedFallback?.source === 'persistent')
     const liveItems: PropOrderbookItem[] =

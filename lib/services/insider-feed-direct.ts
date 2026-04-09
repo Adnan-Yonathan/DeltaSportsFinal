@@ -56,6 +56,8 @@ const EVENT_SPORT_FETCH_CONCURRENCY = 10
 const MAX_EVENT_SPORT_LOOKUPS = 1000
 
 const POSITION_BATCH_SIZE = 200
+const UPCOMING_PRIORITY_WINDOW_HOURS = 6
+const UPCOMING_PRIORITY_MULTIPLIER = 2
 
 const SPORT_PREFIXES = [
   // North American leagues
@@ -271,11 +273,64 @@ async function fetchJson(url: string): Promise<unknown> {
 
 type MarketPriceMap = Map<string, Map<string, number>> // slug → outcome → price
 
-type FetchPricesResult = { prices: MarketPriceMap; settledSlugs: Set<string> }
+type MarketStartTimeMap = Map<string, string | null>
+
+type FetchPricesResult = {
+  prices: MarketPriceMap
+  settledSlugs: Set<string>
+  marketStartTimes: MarketStartTimeMap
+}
+
+function normalizeGammaTimestamp(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  const candidates = [trimmed]
+  if (trimmed.includes(' ') && !trimmed.includes('T')) {
+    candidates.push(trimmed.replace(' ', 'T'))
+  }
+
+  for (const value of candidates) {
+    const ms = Date.parse(value)
+    if (Number.isFinite(ms)) {
+      return new Date(ms).toISOString()
+    }
+  }
+  return null
+}
+
+function resolveMarketStartTime(market: Record<string, unknown>): string | null {
+  const directCandidates = [
+    market.gameStartTime,
+    market.endDate,
+    market.endDateIso,
+    market.eventDate,
+    market.startTime,
+  ]
+  for (const candidate of directCandidates) {
+    const normalized = normalizeGammaTimestamp(candidate)
+    if (normalized) return normalized
+  }
+
+  const events = Array.isArray(market.events) ? market.events : []
+  for (const eventEntry of events) {
+    if (!eventEntry || typeof eventEntry !== 'object') continue
+    const eventRecord = eventEntry as Record<string, unknown>
+    const nestedCandidates = [eventRecord.startTime, eventRecord.eventDate, eventRecord.endDate]
+    for (const candidate of nestedCandidates) {
+      const normalized = normalizeGammaTimestamp(candidate)
+      if (normalized) return normalized
+    }
+  }
+
+  return null
+}
 
 async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
   const priceMap: MarketPriceMap = new Map()
   const settledSlugs = new Set<string>()
+  const marketStartTimes: MarketStartTimeMap = new Map()
   const uniqueSlugs = [...new Set(slugs)]
 
   for (let i = 0; i < uniqueSlugs.length; i += MARKET_FETCH_CONCURRENCY) {
@@ -285,10 +340,11 @@ async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
         const url = `${GAMMA_API}/markets?slug=${encodeURIComponent(slug)}&limit=1`
         const raw = await fetchJson(url) as any[] | null
         if (!Array.isArray(raw) || raw.length === 0) return { slug, map: null, settled: true }
-        const market = raw[0]
+        const market = raw[0] as Record<string, unknown>
+        const marketStartTime = resolveMarketStartTime(market)
 
         const isSettled = market.closed === true || market.active === false || market.acceptingOrders === false
-        if (isSettled) return { slug, map: null, settled: true }
+        if (isSettled) return { slug, map: null, settled: true, marketStartTime }
 
         const outcomes = parseOutcomes(market.outcomes)
         const prices = parseOutcomePrices(market.outcomePrices)
@@ -297,11 +353,12 @@ async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
         for (let j = 0; j < outcomes.length; j++) {
           map.set(outcomes[j], prices[j])
         }
-        return { slug, map, settled: false }
+        return { slug, map, settled: false, marketStartTime }
       })
     )
     for (const r of results) {
       if (!r) continue
+      marketStartTimes.set(r.slug, r.marketStartTime ?? null)
       if (r.settled) {
         settledSlugs.add(r.slug)
       } else if (r.map) {
@@ -310,7 +367,7 @@ async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
     }
   }
 
-  return { prices: priceMap, settledSlugs }
+  return { prices: priceMap, settledSlugs, marketStartTimes }
 }
 
 function parseOutcomes(raw: unknown): string[] {
@@ -775,17 +832,109 @@ type PositionRefreshResult = {
   betsCached:      number
 }
 
+type WalletBatchRow = {
+  wallet: string
+  pseudonym: string | null
+  profile_image_url: string | null
+  roi_pct: number
+  volume_usd: number
+  buy_trade_count: number | null
+  avg_bet_size: number | null
+}
+
+const WALLET_BATCH_SELECT =
+  'wallet, pseudonym, profile_image_url, roi_pct, volume_usd, buy_trade_count, avg_bet_size'
+
+async function loadWalletBatch(
+  supabase: ReturnType<typeof createServiceClient>,
+  batchSize: number,
+  todayET: string
+): Promise<{ rows: WalletBatchRow[]; error: unknown | null }> {
+  const selected = new Map<string, WalletBatchRow>()
+  const nowIso = new Date().toISOString()
+  const soonIso = new Date(Date.now() + UPCOMING_PRIORITY_WINDOW_HOURS * 60 * 60 * 1000).toISOString()
+
+  try {
+    const { data: priorityRows, error: priorityErr } = await (supabase as any)
+      .from('insider_feed_cache')
+      .select('wallet, game_start_time')
+      .eq('cached_date', todayET)
+      .gt('game_start_time', nowIso)
+      .lte('game_start_time', soonIso)
+      .order('game_start_time', { ascending: true })
+      .limit(batchSize * UPCOMING_PRIORITY_MULTIPLIER)
+
+    if (priorityErr) {
+      console.warn('[InsiderFeed] Failed to load priority wallets from cache:', priorityErr)
+    } else if (Array.isArray(priorityRows) && priorityRows.length > 0) {
+      const prioritizedWallets = [...new Set(
+        priorityRows
+          .map((row) => String((row as { wallet?: string }).wallet ?? '').trim().toLowerCase())
+          .filter(Boolean)
+      )]
+
+      if (prioritizedWallets.length > 0) {
+        const walletSubset = prioritizedWallets.slice(0, batchSize)
+        const { data: priorityWalletRows, error: priorityWalletErr } = await (supabase as any)
+          .from('insider_wallets')
+          .select(WALLET_BATCH_SELECT)
+          .eq('is_active', true)
+          .in('wallet', walletSubset)
+
+        if (priorityWalletErr) {
+          console.warn('[InsiderFeed] Failed to hydrate priority wallet rows:', priorityWalletErr)
+        } else if (Array.isArray(priorityWalletRows) && priorityWalletRows.length > 0) {
+          const rank = new Map(walletSubset.map((wallet, index) => [wallet, index]))
+          const sortedRows = (priorityWalletRows as WalletBatchRow[]).sort(
+            (left, right) => (rank.get(left.wallet) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.wallet) ?? Number.MAX_SAFE_INTEGER)
+          )
+          for (const row of sortedRows) {
+            if (selected.size >= batchSize) break
+            selected.set(row.wallet, row)
+          }
+          console.log(`[InsiderFeed] Priority wallets selected: ${selected.size}`)
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[InsiderFeed] Priority wallet selection failed, using round-robin:', error)
+  }
+
+  const remaining = Math.max(batchSize - selected.size, 0)
+  if (remaining > 0) {
+    const oversampleLimit = Math.max(remaining * 3, remaining)
+    const { data: roundRobinRows, error: roundRobinErr } = await (supabase as any)
+      .from('insider_wallets')
+      .select(WALLET_BATCH_SELECT)
+      .eq('is_active', true)
+      .order('last_refreshed_at', { ascending: true, nullsFirst: true })
+      .limit(oversampleLimit)
+
+    if (roundRobinErr) {
+      if (selected.size > 0) {
+        return { rows: [...selected.values()], error: null }
+      }
+      return { rows: [], error: roundRobinErr }
+    }
+
+    if (Array.isArray(roundRobinRows)) {
+      for (const row of roundRobinRows as WalletBatchRow[]) {
+        if (selected.size >= batchSize) break
+        if (selected.has(row.wallet)) continue
+        selected.set(row.wallet, row)
+      }
+    }
+  }
+
+  return { rows: [...selected.values()], error: null }
+}
+
 export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH_SIZE): Promise<PositionRefreshResult> {
   const supabase = createServiceClient()
+  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
-  // ── Step 1: Read wallet batch from DB (round-robin by last_refreshed_at) ──
-
-  const { data: walletRows, error: walletErr } = await (supabase as any)
-    .from('insider_wallets')
-    .select('wallet, pseudonym, profile_image_url, roi_pct, volume_usd, buy_trade_count, avg_bet_size')
-    .eq('is_active', true)
-    .order('last_refreshed_at', { ascending: true, nullsFirst: true })
-    .limit(batchSize)
+  // ── Step 1: Read wallet batch from DB (priority upcoming + round-robin fill) ──
+  const { rows: walletRows, error: walletErr } = await loadWalletBatch(supabase, batchSize, todayET)
 
   if (walletErr) {
     console.error('[InsiderFeed] Failed to read wallet batch:', walletErr)
@@ -924,7 +1073,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
 
   const uniqueSlugs = [...new Set(allPositions.map(p => p.slug))]
   console.log(`[InsiderFeed] Fetching current prices for ${uniqueSlugs.length} markets`)
-  const { prices: currentPrices, settledSlugs } = await fetchCurrentPrices(uniqueSlugs)
+  const { prices: currentPrices, settledSlugs, marketStartTimes } = await fetchCurrentPrices(uniqueSlugs)
   console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets, ${settledSlugs.size} settled`)
 
   // KEPT: Remove settled markets (Gamma API detected closed/inactive)
@@ -932,11 +1081,24 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
   const removedCount = allPositions.length - activePositions.length
   console.log(`[InsiderFeed] Removed ${removedCount} settled positions`)
 
+  const nowMs = Date.now()
+  const nowIsoForFilters = new Date(nowMs).toISOString()
+  const pregamePositions = activePositions.filter((position) => {
+    const marketStartTime = marketStartTimes.get(position.slug)
+    if (!marketStartTime) return false
+    const startMs = Date.parse(marketStartTime)
+    return Number.isFinite(startMs) && startMs > nowMs
+  })
+  const droppedLiveCount = activePositions.length - pregamePositions.length
+  if (droppedLiveCount > 0) {
+    console.log(`[InsiderFeed] Dropped ${droppedLiveCount} live/in-progress positions`)
+  }
+
   // ── Step 5: Build consensus (batch + existing cache entries) ──────────────
 
   // Consensus from this batch
   const batchConsensusMap = new Map<string, Set<string>>()
-  for (const pos of activePositions) {
+  for (const pos of pregamePositions) {
     const key = `${pos.slug}::${pos.outcome}`
     let wallets = batchConsensusMap.get(key)
     if (!wallets) {
@@ -947,17 +1109,17 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
   }
 
   // Merge with existing cache entries for accurate cross-batch consensus
-  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   const slugOutcomePairs = [...batchConsensusMap.keys()]
 
   if (slugOutcomePairs.length > 0) {
     // Query existing cache for today's entries on the same slug+outcome combos
-    const slugsInBatch = [...new Set(activePositions.map(p => p.slug))]
+    const slugsInBatch = [...new Set(pregamePositions.map(p => p.slug))]
     const { data: existingEntries } = await (supabase as any)
       .from('insider_feed_cache')
       .select('wallet, slug, outcome')
       .eq('cached_date', todayET)
       .gte('stake_usd', MIN_STAKE_USD)
+      .gt('game_start_time', nowIsoForFilters)
       .in('slug', slugsInBatch)
 
     if (existingEntries && Array.isArray(existingEntries)) {
@@ -978,7 +1140,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
   const runTs  = new Date().toISOString()
   const scored: Record<string, unknown>[] = []
   const oddsSnapshotMap = await buildInsiderOddsSnapshots(
-    activePositions.map((position) => {
+    pregamePositions.map((position) => {
       const slugPrices = currentPrices.get(position.slug)
       const currentPrice = slugPrices?.get(position.outcome) ?? null
       const currentAmericanOdds =
@@ -996,7 +1158,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     })
   )
 
-  for (const pos of activePositions) {
+  for (const pos of pregamePositions) {
     const meta = walletMetaMap.get(pos.wallet)
     if (!meta) continue
 
@@ -1022,6 +1184,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     const curPrice = slugPrices?.get(pos.outcome) ?? null
     const curAmericanOdds = curPrice !== null ? probabilityToAmericanOdds(curPrice) : null
     const oddsSnapshot = oddsSnapshotMap.get(`${pos.slug}::${pos.outcome}`)
+    const gameStartTime = marketStartTimes.get(pos.slug) ?? null
 
     scored.push({
       wallet:                  pos.wallet,
@@ -1051,6 +1214,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
       best_odds_book:          oddsSnapshot?.bestOddsBook ?? null,
       odds_source_count:       oddsSnapshot?.sourceCount ?? 0,
       odds_is_stale:           false,
+      game_start_time:         gameStartTime,
       refreshed_at:            runTs,
     })
   }
@@ -1073,6 +1237,25 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     .lt('stake_usd', MIN_STAKE_USD)
   if (lowStakePurgeErr) {
     console.warn('[InsiderFeed] Failed to purge low-stake rows:', lowStakePurgeErr)
+  }
+
+  const { error: missingStartPurgeErr } = await (supabase as any)
+    .from('insider_feed_cache')
+    .delete()
+    .eq('cached_date', todayET)
+    .is('game_start_time', null)
+  if (missingStartPurgeErr) {
+    console.warn('[InsiderFeed] Failed to purge rows missing game_start_time:', missingStartPurgeErr)
+  }
+
+  const nowIsoForPurge = new Date().toISOString()
+  const { error: livePurgeErr } = await (supabase as any)
+    .from('insider_feed_cache')
+    .delete()
+    .eq('cached_date', todayET)
+    .lte('game_start_time', nowIsoForPurge)
+  if (livePurgeErr) {
+    console.warn('[InsiderFeed] Failed to purge live rows:', livePurgeErr)
   }
 
   // Remove settled markets discovered in this run so the read path does not
@@ -1115,6 +1298,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     .select('*', { count: 'exact', head: true })
     .eq('cached_date', todayET)
     .gte('stake_usd', MIN_STAKE_USD)
+    .gt('game_start_time', nowIsoForPurge)
   console.log(
     `[InsiderFeed] Total bets in cache for ${todayET} (>= $${MIN_STAKE_USD}): ${totalCached ?? '?'}`
   )

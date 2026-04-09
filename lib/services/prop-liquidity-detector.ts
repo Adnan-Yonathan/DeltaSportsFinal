@@ -1780,7 +1780,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       if (!sides.length) return null
 
       const sharpLean = resolveSharpLean(sides, minSharpNotional, {
-        interpretation: 'complement',
+        interpretation: 'direct',
       })
       if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, series.sportKey)) {
         return null

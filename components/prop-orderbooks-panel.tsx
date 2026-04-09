@@ -493,7 +493,7 @@ const resolveDisplayLean = (item: OrderbookItem) => {
   const underSide = item.sides.find((side) => side.propSide === "Under") ?? null
   const largestWallSide = resolveLargestWall(item)?.propSide ?? null
   const liquiditySide = item.sharpLiquiditySide ?? largestWallSide
-  const side = item.sharpLeanSide ?? resolveOppositeSide(liquiditySide)
+  const side = item.sharpLeanSide ?? liquiditySide
   const liquidityEntry =
     (liquiditySide ? item.sides.find((entry) => entry.propSide === liquiditySide) : null) ??
     resolveLargestWall(item)
@@ -894,7 +894,7 @@ const mergeOrderbookItemsByProp = (items: OrderbookItem[]): DisplayOrderbookItem
         primary.sharpOrderAmericanOdds,
       sharpLeanSide:
         primary.sharpLeanSide ??
-        resolveOppositeSide(primary.sharpLiquiditySide ?? largestWall?.propSide ?? null),
+        (primary.sharpLiquiditySide ?? largestWall?.propSide ?? null),
       sharpLeanAmericanOdds: primary.sharpLeanAmericanOdds,
       sharpLeanBestOdds: bestLeanOdds ?? primary.sharpLeanBestOdds,
       sharpLeanBestBookTitle:
@@ -1522,7 +1522,7 @@ export default function PropOrderbooksPanel({
     const topMaxNotional = topRows.reduce((max, row) => Math.max(max, row.notional), 0)
     const playSubtext = selectedDisplayLean.bestBookTitle
       ? `${selectedDisplayLean.bestBookTitle} best price`
-      : "Direct inverse from sharp resting liquidity"
+      : "Derived from sharp resting liquidity"
 
     return {
       id: selectedItem.id,
@@ -1880,7 +1880,7 @@ export default function PropOrderbooksPanel({
                       <div className="mt-1 text-xs text-white/50">
                         {selectedDisplayLean?.bestBookTitle
                           ? `${selectedDisplayLean.bestBookTitle} best price`
-                          : "Direct inverse from sharp resting liquidity"}
+                          : "Derived from sharp resting liquidity"}
                       </div>
                     </div>
                     <div className="rounded-md bg-lime-500 px-2.5 py-1 text-sm font-semibold text-black">

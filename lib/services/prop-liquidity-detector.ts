@@ -1178,9 +1178,12 @@ const summarizeSide = (
   }
 }
 
+type SharpLeanInterpretation = 'complement' | 'direct'
+
 const resolveSharpLean = (
   sides: PropOrderbookSide[],
-  minSharpNotional: number
+  minSharpNotional: number,
+  opts?: { interpretation?: SharpLeanInterpretation }
 ): {
   sharpLiquiditySide: 'Over' | 'Under' | null
   sharpLiquidityNotional: number | null
@@ -1188,6 +1191,7 @@ const resolveSharpLean = (
   sharpLeanSide: 'Over' | 'Under' | null
   sharpLeanAmericanOdds: number | null
 } => {
+  const interpretation = opts?.interpretation ?? 'complement'
   const byLiquidity = sides
     .filter((side) => side.propSide && (side.wallNotional ?? 0) > 0)
   const eligible = byLiquidity.filter((side) => (side.wallNotional ?? 0) >= minSharpNotional)
@@ -1224,17 +1228,24 @@ const resolveSharpLean = (
   const sharpLiquidityNotional = best.wallNotional ?? null
   const sharpOrderAmericanOdds = best.wallAmericanOdds ?? resolveSideLevelOdds(best, 'direct')
 
-  // OddsJam crossed-market logic: the side showing the wall liquidity is a "trap".
-  // The sharp line is the opposite side at (100 - price).
   const sharpLeanSide: 'Over' | 'Under' =
-    sharpLiquiditySide === 'Over' ? 'Under' : 'Over'
+    interpretation === 'complement'
+      ? sharpLiquiditySide === 'Over'
+        ? 'Under'
+        : 'Over'
+      : sharpLiquiditySide
   const oppositeSide =
     sides.find((side) => side.propSide != null && side.propSide === sharpLeanSide) ?? null
   const sharpLeanAmericanOdds =
-    best.sharpLineAmericanOdds ??
-    oppositeSide?.wallAmericanOdds ??
-    resolveSideLevelOdds(best, 'sharp') ??
-    resolveSideLevelOdds(oppositeSide, 'direct')
+    interpretation === 'complement'
+      ? best.sharpLineAmericanOdds ??
+        oppositeSide?.wallAmericanOdds ??
+        resolveSideLevelOdds(best, 'sharp') ??
+        resolveSideLevelOdds(oppositeSide, 'direct')
+      : sharpOrderAmericanOdds ??
+        resolveSideLevelOdds(best, 'direct') ??
+        oppositeSide?.sharpLineAmericanOdds ??
+        resolveSideLevelOdds(oppositeSide, 'sharp')
 
   return {
     sharpLiquiditySide,
@@ -1573,7 +1584,9 @@ const fetchExchangePropOrderbookItems = async (opts: {
           }
           if (!sides.length) continue
 
-          const sharpLean = resolveSharpLean(sides, minSharpNotional)
+          const sharpLean = resolveSharpLean(sides, minSharpNotional, {
+            interpretation: 'direct',
+          })
           if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, sportKey)) {
             continue
           }
@@ -1766,7 +1779,9 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       ].filter((side) => side.levels.length > 0 || (side.wallNotional ?? 0) > 0)
       if (!sides.length) return null
 
-      const sharpLean = resolveSharpLean(sides, minSharpNotional)
+      const sharpLean = resolveSharpLean(sides, minSharpNotional, {
+        interpretation: 'complement',
+      })
       if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, series.sportKey)) {
         return null
       }
@@ -1975,7 +1990,9 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
             (sideWalls[0] <= 5 && sideWalls[1] <= 5))
         if (hasMirroredExtremeWalls) return null
 
-        const sharpLean = resolveSharpLean(sides, minSharpNotional)
+        const sharpLean = resolveSharpLean(sides, minSharpNotional, {
+          interpretation: 'direct',
+        })
         if (!passesFavoriteOddsGate(sharpLean.sharpLeanAmericanOdds, sportMeta.sportKey)) {
           return null
         }

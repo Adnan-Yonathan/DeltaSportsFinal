@@ -497,13 +497,17 @@ const resolveDisplayLean = (item: OrderbookItem) => {
   const liquidityEntry =
     (liquiditySide ? item.sides.find((entry) => entry.propSide === liquiditySide) : null) ??
     resolveLargestWall(item)
+  const shouldUseInverseLiquidityOdds =
+    side != null && liquiditySide != null && side !== liquiditySide
   const inverseOddsFromLiquidity =
-    liquidityEntry?.sharpLineAmericanOdds ??
-    (liquidityEntry?.wallPriceCents != null
-      ? priceCentsToAmericanOdds(
-          Math.max(0, Math.min(100, 100 - liquidityEntry.wallPriceCents))
-        )
-      : null)
+    shouldUseInverseLiquidityOdds
+      ? liquidityEntry?.sharpLineAmericanOdds ??
+        (liquidityEntry?.wallPriceCents != null
+          ? priceCentsToAmericanOdds(
+              Math.max(0, Math.min(100, 100 - liquidityEntry.wallPriceCents))
+            )
+          : null)
+      : null
   const oddsFromSide =
     side === "Over"
       ? overSide?.wallAmericanOdds ??
@@ -516,14 +520,10 @@ const resolveDisplayLean = (item: OrderbookItem) => {
           overSide?.sharpLineAmericanOdds ??
           resolveSideLevelOdds(overSide, "sharp")
         : null
-  const odds =
-    inverseOddsFromLiquidity ??
-    item.sharpLeanAmericanOdds ??
-    oddsFromSide ??
-    item.fanduelLeanOdds ??
-    item.sharpLeanBestOdds
+  const odds = oddsFromSide ?? inverseOddsFromLiquidity ?? item.sharpLeanAmericanOdds ?? item.fanduelLeanOdds ?? item.sharpLeanBestOdds
+  const usedInverseLiquidityOdds = oddsFromSide == null && inverseOddsFromLiquidity != null
   const bestBookTitle =
-    inverseOddsFromLiquidity != null
+    usedInverseLiquidityOdds
       ? null
       : item.fanduelLeanOdds != null
         ? item.fanduelLeanBookTitle
@@ -1370,7 +1370,7 @@ export default function PropOrderbooksPanel({
           max: Number.isFinite(max as number) ? (max as number) : null,
         }
       }
-      return { min: -200, max: null as number | null }
+      return { min: -150, max: 150 }
     })()
 
     const matchesOddsRange = (candidateOdds: number | null) => {

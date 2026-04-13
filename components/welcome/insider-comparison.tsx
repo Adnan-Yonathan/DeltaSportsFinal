@@ -5,18 +5,18 @@ import { ArrowRight, X, Check } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 
 const WITHOUT = [
-  'Public tweets — already priced in by the time you see them',
-  'Podcast picks — recorded hours before air, lines have moved',
+  'Public tweets - already priced in by the time you see them',
+  'Podcast picks - recorded hours before air, lines have moved',
   'Gut feel with no edge calculation and no CLV tracking',
-  'Manual line shopping — slow, incomplete, missed numbers',
+  'Manual line shopping - slow, incomplete, missed numbers',
   'You find out about the line move after it happened',
 ]
 
 const WITH = [
-  'Whale Feed — $50K+ tickets on your screen in real time',
-  'Sharp Projections — edge-ranked board, refreshed every 15 min',
-  'Research Mode — full CLV history, backtest your process',
-  'Multi-book comparison built in — best number, every time',
+  'Whale Feed - $50K+ tickets on your screen in real time',
+  'Sharp Movement - line movement and limit expansion in one board',
+  'Insider Feed - track verified profitable wallets in real time',
+  'Multi-book comparison built in - best number, every time',
   'See the move before the line adjusts. Not after.',
 ]
 
@@ -117,7 +117,7 @@ export function InsiderComparison() {
             href="/auth/signup"
             className="inline-flex w-full max-w-md items-center justify-center gap-3 rounded-full border border-emerald-400/35 bg-black/70 px-5 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200 shadow-[0_18px_50px_rgba(16,185,129,0.18)] backdrop-blur transition hover:border-emerald-300/70 hover:text-emerald-100 sm:w-auto sm:max-w-none sm:tracking-[0.35em]"
           >
-            <span>Close the gap — start free</span>
+            <span>Close the gap - start free</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

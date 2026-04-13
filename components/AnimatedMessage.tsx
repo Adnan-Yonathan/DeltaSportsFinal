@@ -53,8 +53,8 @@ const PAGE_METADATA: Record<string, Omit<PageCardData, 'key' | 'recommended'>> =
     icon: <Users className="w-4 h-4" />,
   },
   'market-projections': {
-    label: 'Sharp Projections',
-    description: 'AI-powered spread, total, and moneyline projections with edge detection',
+    label: 'Sharp Movement',
+    description: 'Pinnacle line movement and limit expansion across spreads, totals, and moneylines',
     href: '/market-projections',
     icon: <TrendingUp className="w-4 h-4" />,
   },

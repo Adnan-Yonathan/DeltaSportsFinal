@@ -5,7 +5,6 @@ import { motion, useReducedMotion } from 'framer-motion'
 import {
   Activity,
   ArrowRight,
-  Beaker,
   Eye,
   Radar,
   Waves,
@@ -26,9 +25,9 @@ const STEPS: ToolStep[] = [
   {
     id: 'sharp-projections',
     label: 'TOOL 01',
-    title: 'Sharp Projections',
+    title: 'Sharp Movement',
     description:
-      'Market-driven lines for spreads, totals, moneylines. Find gaps before they close.',
+      'Track line movement, limit expansion, and market pressure before prices settle.',
     href: '/tools/sharp-projections',
     Icon: Radar,
   },
@@ -59,15 +58,6 @@ const STEPS: ToolStep[] = [
     href: '/tools/insider-feed',
     Icon: Eye,
   },
-  {
-    id: 'research-mode',
-    label: 'TOOL 05',
-    title: 'Research Mode',
-    description:
-      'Explain movement, validate a thesis, and study edges long-term with backtests.',
-    href: '/tools/research-mode',
-    Icon: Beaker,
-  },
 ]
 
 export function InsiderTransformation() {
@@ -94,8 +84,8 @@ export function InsiderTransformation() {
             <span className="text-white/60">$</span>{' '}
             <Typewriter
               text={[
-                'scan projections -> confirm with props -> watch whales -> research closes',
-                'find gaps -> price shop -> catch steam -> validate long-term',
+                'scan movement -> confirm with props -> watch whales -> track insiders',
+                'find gaps -> price shop -> catch steam -> validate conviction',
               ]}
               speed={26}
               deleteSpeed={14}

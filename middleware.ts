@@ -25,6 +25,7 @@ const SESSION_AWARE_PUBLIC_PATHS = ['/welcome', '/pricing', '/checkout']
 
 const ALWAYS_PUBLIC_PREFIXES = [
   '/a',
+  '/affiliate',
   '/blog',
   '/tools',
   '/calculators',

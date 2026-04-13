@@ -116,13 +116,13 @@ export function WhaleFeedSection() {
 export function ResearchModeSection() {
   return (
     <FeatureShowcase
-      title="Research Mode"
+      title="Sharp Movement"
       imageSrc="/Screenshot 2026-02-24 142303.png"
-      imageAlt="Research mode analytics"
-      howItWorks="Research Mode breaks down movement, closes, and market behavior across time so you can inspect what actually happened before, during, and after entry."
-      whyValuable="It turns every bet into feedback, improving decision quality over time and helping you build repeatable long-term process instead of one-off picks."
+      imageAlt="Sharp movement analytics"
+      howItWorks="Sharp Movement breaks down opening-to-current movement, limit changes, and market behavior so you can inspect what happened before and after entry."
+      whyValuable="It helps you validate thesis strength, avoid late entries, and build a repeatable process based on real market pressure."
       metrics={[
-        { label: 'Long-term ROI', value: '+6.9%', note: 'research-backed card' },
+        { label: 'Long-term ROI', value: '+6.9%', note: 'movement-backed card' },
         { label: 'Average CLV', value: '+1.1%', note: 'market close delta' },
         { label: 'False Signals', value: '-22%', note: 'after filtering' },
         { label: 'Backtests Run', value: '640', note: 'strategy iterations' },

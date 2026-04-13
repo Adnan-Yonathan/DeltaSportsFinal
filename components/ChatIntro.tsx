@@ -28,7 +28,6 @@ type ToolCardId =
   | 'sharp-props'
   | 'whale-feed'
   | 'insider-feed'
-  | 'research'
 
 type ToolCard = {
   id: ToolCardId
@@ -42,9 +41,9 @@ const HOME_FAVORITES_STORAGE_KEY = 'delta_home_tool_favorites_v1'
 const TOOL_CARDS: ToolCard[] = [
   {
     id: 'sharp-projections',
-    title: 'Sharp Projections',
+    title: 'Sharp Movement',
     href: '/market-projections',
-    subtitle: 'Top spread, moneyline, and total edges',
+    subtitle: 'Pinnacle movement and limit expansion',
   },
   {
     id: 'sharp-props',
@@ -54,7 +53,7 @@ const TOOL_CARDS: ToolCard[] = [
   },
   {
     id: 'whale-feed',
-    title: 'Whale Detector',
+    title: 'Whale Feed',
     href: '/sharp-detector',
     subtitle: 'Large-ticket flow with timing and cluster context',
   },
@@ -63,12 +62,6 @@ const TOOL_CARDS: ToolCard[] = [
     title: 'Insider Feed',
     href: '/polymarket-insider',
     subtitle: 'Scored positions from top-ROI Polymarket wallets',
-  },
-  {
-    id: 'research',
-    title: 'Research',
-    href: '/research/sharp-action',
-    subtitle: 'Game-level sharp signals and movement notes',
   },
 ]
 
@@ -92,11 +85,6 @@ const FALLBACK_PREVIEWS: Record<ToolCardId, string[]> = {
     'Loading top-ROI wallet positions...',
     'Scanning insider score leaders...',
     'Loading open sports positions...',
-  ],
-  research: [
-    'Loading top game narratives...',
-    'Loading sharp signal summaries...',
-    'Loading line movement context...',
   ],
 }
 
@@ -212,36 +200,8 @@ export default function ChatIntro({
             })
           )
 
-          const researchLines = pickTopThree(
-            edges.map((edge) => {
-              const away = edge?.awayTeam ?? 'Away'
-              const home = edge?.homeTeam ?? 'Home'
-              const matchup = `${away} @ ${home}`
-              const strongestSignal = Array.isArray(edge?.sharpSignals)
-                ? edge.sharpSignals.reduce(
-                    (best: any, signal: any) =>
-                      !best || (signal?.strength ?? 0) > (best?.strength ?? 0)
-                        ? signal
-                        : best,
-                    null
-                  )
-                : null
-              if (strongestSignal?.type) {
-                return `${matchup} - ${String(strongestSignal.type).toUpperCase()} signal (${strongestSignal.strength ?? 0}/5)`
-              }
-              if (Array.isArray(edge?.lineMovements) && edge.lineMovements[0]) {
-                const move = edge.lineMovements[0]
-                return `${matchup} - ${move.market ?? 'Line'} moved ${move.openingLine ?? 'n/a'} to ${move.currentLine ?? 'n/a'}`
-              }
-              return `${matchup} - Research update available`
-            })
-          )
-
           if (projectionLines.length) {
             nextPreviews['sharp-projections'] = projectionLines
-          }
-          if (researchLines.length) {
-            nextPreviews.research = researchLines
           }
         }
 
@@ -399,7 +359,7 @@ export default function ChatIntro({
     {
       question: 'How does free membership work?',
       answer:
-        'Create an account to access the free tier. Upgrade anytime for full projections and research.',
+        'Create an account to access the free tier. Upgrade anytime for full movement and props access.',
     },
   ]
 
@@ -429,10 +389,10 @@ export default function ChatIntro({
             className="w-full"
           >
             <FeaturesSix
-              title="Sharp Projections that update in real time"
-              description="Stay synced to live market movement while your projections update for games, players, and parlays."
+              title="Sharp Movement in real time"
+              description="Stay synced to Pinnacle line movement, limit expansion, and market pressure across games."
               imageSrc="/Screenshot 2026-01-11 170628.png"
-              imageAlt="Sharp projections overview"
+              imageAlt="Sharp movement overview"
             />
             <FeaturesSix
               title="Research mode for sharper decisions"

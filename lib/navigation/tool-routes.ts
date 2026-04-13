@@ -5,10 +5,8 @@ export const DEFAULT_TOOL_ROUTE = '/market-projections'
 
 export const TOOL_ROUTE_PREFIXES = [
   '/market-projections',
-  '/odds-screen',
   '/sharp-props',
   '/sharp-detector',
-  '/research',
   '/calculators',
   '/docs',
   '/socials',

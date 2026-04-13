@@ -11,7 +11,7 @@ const FAQS = [
   {
     question: 'What do I get with Delta Sports?',
     answer:
-      'You get access to Sharp Projections, Sharp Props, Whale Feed, and Research Mode in one workflow.',
+      'You get access to Sharp Movement, Sharp Props, Whale Feed, and Insider Feed in one workflow.',
   },
   {
     question: 'Can I cancel any time?',

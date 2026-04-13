@@ -24,7 +24,7 @@ interface ROICalculatorProps {
 
 const ROICalculator = ({
   heading = "Calculate Your Edge",
-  description = "See how much you could earn following Delta's sharp projections",
+  description = "See how much you could earn following Delta's sharp movement signals",
   variant = "default",
 }: ROICalculatorProps) => {
   const [betSize, setBetSize] = useState<string>(variant === "welcome" ? "100" : "100");

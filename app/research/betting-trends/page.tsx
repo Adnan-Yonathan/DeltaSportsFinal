@@ -4,5 +4,5 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function BettingTrendsPage() {
-  redirect('/research/sharp-action')
+  redirect('/market-projections')
 }

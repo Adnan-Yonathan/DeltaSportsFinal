@@ -135,14 +135,14 @@ function AnimatedHero({
           </div>
           <div className="mt-4 space-y-3 text-sm text-white/70">
             <p>
-              Sharp Projections show the fair price for this market and the edge
-              vs the listed book number. When the projection price is better than
-              the market, you have a positive expected value spot.
+              Sharp Movement shows opening-to-current line moves, limit expansion,
+              and pressure vs listed book numbers. When pressure confirms your side,
+              you can enter before the board fully settles.
             </p>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-[13px]">
               <p className="font-semibold text-white">How to make money here:</p>
               <ol className="mt-2 list-decimal list-inside space-y-1 text-white/70">
-                <li>Open Sharp Projections and find this matchup.</li>
+                <li>Open Sharp Movement and find this matchup.</li>
                 <li>Compare the fair line to the best available book price.</li>
                 <li>Only bet when the edge stays positive across books.</li>
               </ol>

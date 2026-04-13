@@ -18,6 +18,10 @@ export function Header() {
     { label: 'Features', href: '#features', targetId: 'features' },
     { label: 'Pricing', href: '#pricing', targetId: 'pricing' },
   ]
+  const publicLinks = [
+    { label: 'Affiliate', href: '/affiliate' },
+    { label: 'Blog', href: '/blog' },
+  ]
 
   const handleSectionClick = (
     event: React.MouseEvent<HTMLAnchorElement>,
@@ -68,6 +72,16 @@ export function Header() {
               {link.label}
             </a>
           ))}
+          {publicLinks.map((link) => (
+            <a
+              key={link.label}
+              className={buttonVariants({ variant: 'ghost' })}
+              href={link.href}
+              style={{ color: '#ffffff' }}
+            >
+              {link.label}
+            </a>
+          ))}
           <Button asChild variant="outline" className="border-white/20 bg-transparent" style={{ color: '#ffffff', borderColor: ACCENT }}>
             <a href="/auth/login">Sign In</a>
           </Button>
@@ -100,6 +114,20 @@ export function Header() {
               })}
               href={link.href}
               onClick={(event) => handleSectionClick(event, link.targetId)}
+              style={{ color: '#ffffff' }}
+            >
+              {link.label}
+            </a>
+          ))}
+          {publicLinks.map((link) => (
+            <a
+              key={link.label}
+              className={buttonVariants({
+                variant: 'ghost',
+                className: 'justify-start',
+              })}
+              href={link.href}
+              onClick={() => setOpen(false)}
               style={{ color: '#ffffff' }}
             >
               {link.label}

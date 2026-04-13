@@ -10,7 +10,6 @@ import {
   ChartNoAxesCombined,
   DollarSign,
   Eye,
-  FlaskConical,
   Loader2,
   Lock,
   Search,
@@ -52,7 +51,7 @@ type ScreenId =
   | 'projections'
   | 'props'
   | 'whale'
-  | 'research'
+  | 'insider'
   | 'roi'
   | 'final'
 
@@ -67,7 +66,7 @@ const SCREENS: Array<{ id: ScreenId; label: string; progress: number; cta: strin
   { id: 'projections',  label: 'Step 5 of 11',  progress: 45,  cta: 'Next tool →' },
   { id: 'props',        label: 'Step 6 of 11',  progress: 55,  cta: 'Next tool →' },
   { id: 'whale',        label: 'Step 7 of 11',  progress: 64,  cta: 'Next tool →' },
-  { id: 'research',     label: 'Step 8 of 11',  progress: 73,  cta: 'Calculate my edge →' },
+  { id: 'insider',      label: 'Step 8 of 11',  progress: 73,  cta: 'Calculate my edge →' },
   { id: 'roi',          label: 'Step 9 of 11',  progress: 82,  cta: 'See what I get →' },
   { id: 'final',        label: 'Step 11 of 11', progress: 100, cta: 'Start my free trial →' },
 ]
@@ -384,28 +383,28 @@ const TOOL_ICONS: Record<RecommendedToolKey, ReactNode> = {
   'sharp-props': <Activity className="h-3.5 w-3.5" />,
   'whale-detector': <Waves className="h-3.5 w-3.5" />,
   'insider-feed': <Eye className="h-3.5 w-3.5" />,
-  'research-mode': <FlaskConical className="h-3.5 w-3.5" />,
+  'research-mode': <Eye className="h-3.5 w-3.5" />,
 }
 
 const WORKFLOW_STEPS: Record<TrialGoalKey, Array<{ step: string; tool: string }>> = {
   'beat-the-book': [
-    { step: 'Find market mispricing', tool: 'Sharp Projections' },
-    { step: 'Confirm edge strength', tool: 'Research Mode' },
+    { step: 'Find early market movement', tool: 'Sharp Movement' },
+    { step: 'Confirm top-wallet conviction', tool: 'Insider Feed' },
     { step: 'Bet before adjustment', tool: 'Live boards' },
   ],
   'find-sharp-lines': [
-    { step: 'Scan edge-ranked board', tool: 'Sharp Projections' },
+    { step: 'Scan movement board', tool: 'Sharp Movement' },
     { step: 'Track steam moves', tool: 'Whale Feed' },
     { step: 'Lock in before move', tool: 'Line shopping' },
   ],
   'track-whale-activity': [
     { step: 'Watch $50K+ tickets', tool: 'Whale Feed' },
     { step: 'Read prop pressure', tool: 'Sharp Props' },
-    { step: 'Confirm with projections', tool: 'Sharp Projections' },
+    { step: 'Confirm follow-through', tool: 'Insider Feed' },
   ],
   'validate-picks': [
-    { step: 'Check CLV history', tool: 'Research Mode' },
-    { step: 'Confirm edge exists', tool: 'Sharp Projections' },
+    { step: 'Check top-wallet positioning', tool: 'Insider Feed' },
+    { step: 'Confirm movement edge', tool: 'Sharp Movement' },
     { step: 'Size based on confidence', tool: 'All tools' },
   ],
 }
@@ -427,7 +426,7 @@ function ScreenGoals({
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-2xl font-black tracking-tight text-white">What are you here for?</h2>
-        <p className="mt-1.5 text-sm text-white/50">Select all that apply. We'll build your workflow around this.</p>
+        <p className="mt-1.5 text-sm text-white/50">Select all that apply. We&apos;ll build your workflow around this.</p>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -596,15 +595,15 @@ function MockupShell({
   )
 }
 
-// ─── Screen: Sharp Projections ────────────────────────────────────────────────
+// ─── Screen: Sharp Movement ───────────────────────────────────────────────────
 
 const PROJ_ROWS = [
   { game: 'Knicks vs Heat', market: 'Spread', edge: '+5.2', line: 'NYK -6.5', hot: true,
-    expand: 'Delta model: NYK -4.1 · Market: -6.5 · Gap: 2.4 pts — model says Knicks are undervalued.' },
+    expand: 'Opened NYK -4.5, now -6.5 after sharp steam. Movement velocity is elevated across major books.' },
   { game: 'Lakers vs Celtics', market: 'Total', edge: '+3.8', line: 'Over 224.5', hot: false,
-    expand: 'Combined pace model: 228.1 implied · Market: 224.5 · 3.6pt misprice on totals.' },
+    expand: 'Total climbed from 222.5 to 224.5 in the last hour. Market is still reacting to early buy pressure.' },
   { game: 'Bills vs Chiefs', market: 'Moneyline', edge: '+2.7', line: 'KC -148', hot: false,
-    expand: 'Win probability model: KC 58.2% · Implied by -148: 59.7% · Slight overvalue on Chiefs.' },
+    expand: 'Moneyline shifted from KC -132 to -148 since open. Sharp money continues to shape price discovery.' },
 ]
 
 function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
@@ -613,9 +612,9 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
 
   const primaryGoal = draft.goals[0]
   const goalContext: Record<string, string> = {
-    'beat-the-book': 'This is your primary tool — surface mispricings before the market corrects.',
+    'beat-the-book': 'This is your primary tool — surface movement before the market fully prices it.',
     'find-sharp-lines': 'Scan this board first. Sharp line moves start here.',
-    'track-whale-activity': 'Use this to confirm whale bets are backed by model edge.',
+    'track-whale-activity': 'Use this to confirm whale bets are followed by real movement.',
     'validate-picks': 'Cross-reference your picks here before placing.',
   }
   const contextLine = primaryGoal ? goalContext[primaryGoal] : null
@@ -627,9 +626,9 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
           <Pill>Step 5 of 11</Pill>
           <ChartNoAxesCombined className="h-4 w-4 text-emerald-300" />
         </div>
-        <h2 className="text-2xl font-black tracking-tight text-white">Sharp Projections</h2>
+        <h2 className="text-2xl font-black tracking-tight text-white">Sharp Movement</h2>
         <p className="mt-1.5 text-sm text-white/50">
-          {contextLine ?? 'Edge-ranked board refreshing every 15 min. Tap a row to see the edge breakdown.'}
+          {contextLine ?? 'Movement board refreshing every 15 min. Tap a row to see the move breakdown.'}
         </p>
       </div>
 
@@ -678,7 +677,7 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
           ))}
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {['Spread gap', 'Total misprice', 'Model consensus'].map((p) => (
+          {['Open vs now', 'Move velocity', 'Steam confirmed'].map((p) => (
             <span key={p} className="rounded-full border border-emerald-300/15 bg-emerald-400/7 px-2 py-0.5 text-[10px] text-emerald-200/65">{p}</span>
           ))}
         </div>
@@ -686,8 +685,8 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
 
       <InfoCallout>
         {isSharp
-          ? 'Edge value = delta between Delta model price and live market. Positive = market hasn\'t corrected yet. Negative edge rows are hidden by default.'
-          : 'Green edge badges mean Delta\'s model disagrees with the current line. The higher the number, the bigger the gap — those surface first.'}
+          ? 'Movement edge = the opening-to-current delta with confirmation from real-time steam and limits.'
+          : 'Green badges mark faster line movement and stronger follow-through, so the highest-signal spots surface first.'}
       </InfoCallout>
 
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -888,59 +887,59 @@ function ScreenWhale({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }
   )
 }
 
-// ─── Screen: Research Mode ────────────────────────────────────────────────────
+// ─── Screen: Insider Feed ─────────────────────────────────────────────────────
 
 const BEFORE_BARS = [
-  { label: 'Closing line value', value: '+1.1%', pct: 14, warn: false },
-  { label: 'Market movement accuracy', value: '54%', pct: 54, warn: true },
-  { label: 'Sharp-aligned bets', value: '41%', pct: 41, warn: true },
-  { label: 'Win rate on sharp picks', value: '48%', pct: 48, warn: true },
+  { label: 'Top-wallet alignment', value: '39%', pct: 39, warn: true },
+  { label: 'Early entry timing', value: '44%', pct: 44, warn: true },
+  { label: 'Move follow-through', value: '51%', pct: 51, warn: true },
+  { label: 'Signal confirmation rate', value: '48%', pct: 48, warn: true },
 ]
 const AFTER_BARS = [
-  { label: 'Closing line value', value: '+4.3%', pct: 57, warn: false },
-  { label: 'Market movement accuracy', value: '71%', pct: 71, warn: false },
-  { label: 'Sharp-aligned bets', value: '68%', pct: 68, warn: false },
-  { label: 'Win rate on sharp picks', value: '57%', pct: 57, warn: true },
+  { label: 'Top-wallet alignment', value: '66%', pct: 66, warn: false },
+  { label: 'Early entry timing', value: '72%', pct: 72, warn: false },
+  { label: 'Move follow-through', value: '74%', pct: 74, warn: false },
+  { label: 'Signal confirmation rate', value: '63%', pct: 63, warn: false },
 ]
 
 const EXP_PROJECTIONS: Record<TrialExperience, string> = {
-  'casual-fan': 'Members at your level average +1.8% CLV improvement in their first 30 days.',
-  'recreational': 'Members at your level average +2.3% CLV improvement in their first 30 days.',
-  'serious-bettor': 'Members at your level average +3.1% CLV improvement in their first 30 days.',
-  'sharp-pro': 'At your level, CLV improvement is more incremental — members average +1.4%, but signal quality compounds over 90+ days.',
+  'casual-fan': 'Members at your level improve signal timing by 18% in their first 30 days.',
+  'recreational': 'Members at your level improve signal timing by 23% in their first 30 days.',
+  'serious-bettor': 'Members at your level improve signal timing by 31% in their first 30 days.',
+  'sharp-pro': 'At your level, improvements are incremental - timing gains average 14% and compound over 90+ days.',
 }
 
-function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
+function ScreenInsider({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
   const [showAfter, setShowAfter] = useState(false)
   const bars = showAfter ? AFTER_BARS : BEFORE_BARS
   const expProj = draft.experienceLevel ? EXP_PROJECTIONS[draft.experienceLevel] : EXP_PROJECTIONS['recreational']
 
   const primaryGoal = draft.goals[0]
-  const researchContext: Record<string, string> = {
-    'beat-the-book': 'Backtest which edges have held over time. Confirms your process before you size up.',
-    'find-sharp-lines': 'Historical CLV tracking shows which line types move most consistently.',
-    'track-whale-activity': 'Research Mode validates: do whale bets actually beat closing line?',
-    'validate-picks': 'This is your #1 tool — CLV history and backtesting built for your workflow.',
+  const insiderContext: Record<string, string> = {
+    'beat-the-book': 'Use top-wallet positioning to confirm where smart money is leaning before entry.',
+    'find-sharp-lines': 'Pair line movement with insider wallet conviction for cleaner timing.',
+    'track-whale-activity': 'Whale alerts + insider wallet alignment helps you separate signal from noise.',
+    'validate-picks': 'This is your #1 tool for confirmation before you lock a bet.',
   }
-  const contextLine = primaryGoal ? researchContext[primaryGoal] : null
+  const contextLine = primaryGoal ? insiderContext[primaryGoal] : null
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
           <Pill>Step 8 of 11</Pill>
-          <FlaskConical className="h-4 w-4 text-emerald-400/60" />
+          <Eye className="h-4 w-4 text-emerald-400/60" />
         </div>
-        <h2 className="text-2xl font-black tracking-tight text-white">Research Mode</h2>
+        <h2 className="text-2xl font-black tracking-tight text-white">Insider Feed</h2>
         <p className="mt-1.5 text-sm text-white/50">
-          {contextLine ?? 'Track CLV, backtest your process, and see what a disciplined system looks like.'}
+          {contextLine ?? 'Follow top-ROI wallet positioning and validate direction before entry.'}
         </p>
       </div>
 
-      <MockupShell badge="SYNDICATE">
+      <MockupShell badge="INSIDER">
         {/* Before / After toggle */}
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-[9px] uppercase tracking-[0.2em] text-white/28">Your last 30 days</span>
+          <span className="text-[9px] uppercase tracking-[0.2em] text-white/28">Signal quality trend</span>
           <div className="flex rounded-full border border-white/10 bg-black/30 p-0.5">
             {['Before', 'After'].map((label) => {
               const active = label === 'After' ? showAfter : !showAfter
@@ -985,7 +984,7 @@ function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolea
 
         <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/45">
           <Lock className="mb-0.5 mr-1.5 inline h-3 w-3" />
-          Full history unlocks with <span className="font-semibold text-emerald-300">Syndicate</span>
+          Full insider history unlocks with <span className="font-semibold text-emerald-300">Syndicate</span>
         </div>
       </MockupShell>
 
@@ -1032,7 +1031,7 @@ function ScreenRoi({
           {draft.name ? `${draft.name.split(' ')[0]}, how much do you bet?` : 'How much do you bet?'}
         </h2>
         <p className="mt-1.5 text-sm text-white/50">
-          We'll show you exactly what Delta needs to pay for itself.
+          We&apos;ll show you exactly what Delta needs to pay for itself.
         </p>
       </div>
 
@@ -1088,7 +1087,7 @@ function ScreenRoi({
             extra {isOne ? 'win' : 'wins'} per month
           </div>
           <div className="mt-2 text-sm text-white/45">
-            That's all Delta needs to pay for itself.
+            That&apos;s all Delta needs to pay for itself.
           </div>
           <div className="mt-3 text-xs text-white/30">
             At ${betSize}/bet (−110 odds), {isOne ? '1 win' : `${winsNeeded} wins`} = ${isOne ? profitPerWin : (Number(profitPerWin) * winsNeeded).toFixed(0)} profit · Delta costs $79/mo
@@ -1097,7 +1096,7 @@ function ScreenRoi({
       </motion.div>
 
       <p className="text-center text-xs text-white/35">
-        You're placing ~{betsPerMonth} bets/month.{' '}
+        You&apos;re placing ~{betsPerMonth} bets/month.{' '}
         <span className="text-white/55">Delta only needs {winsNeeded} of them.</span>
       </p>
     </div>
@@ -1108,10 +1107,10 @@ function ScreenRoi({
 
 
 const TOOLS_LIST: Array<{ icon: ReactNode; title: string; desc: string }> = [
-  { icon: <ChartNoAxesCombined className="h-4 w-4" />, title: 'Sharp Projections', desc: 'Edge-ranked spreads, totals, moneylines' },
+  { icon: <ChartNoAxesCombined className="h-4 w-4" />, title: 'Sharp Movement', desc: 'Opening-to-current line movement with live signal context' },
   { icon: <Activity className="h-4 w-4" />,            title: 'Sharp Props',       desc: 'Orderbook pressure and lean scoring' },
   { icon: <Waves className="h-4 w-4" />,               title: 'Whale Feed',        desc: 'Large-ticket alerts, live' },
-  { icon: <FlaskConical className="h-4 w-4" />,        title: 'Research Mode',     desc: 'CLV tracking and backtesting' },
+  { icon: <Eye className="h-4 w-4" />,                 title: 'Insider Feed',      desc: 'Top-ROI wallet positioning and confirmation signals' },
 ]
 
 function ScreenFinal({
@@ -1126,7 +1125,7 @@ function ScreenFinal({
   rm: boolean
 }) {
   const firstName = draft.name ? draft.name.split(' ')[0] : null
-  const topTool = draft.prioritizedTools[0] ? TOOL_DISPLAY_NAMES[draft.prioritizedTools[0]] : 'Sharp Projections'
+  const topTool = draft.prioritizedTools[0] ? TOOL_DISPLAY_NAMES[draft.prioritizedTools[0]] : 'Sharp Movement'
   const winsNeeded = calcWinsNeeded(draft.betSize)
 
   return (
@@ -1139,7 +1138,7 @@ function ScreenFinal({
           {firstName ? `You're almost in, ${firstName}.` : "You're almost in."}
         </h2>
         <p className="mt-1.5 text-sm text-white/50">
-          Your setup is ready. Here's what you're getting access to.
+          Your setup is ready. Here&apos;s what you&apos;re getting access to.
         </p>
       </motion.div>
 
@@ -1412,7 +1411,7 @@ export default function TrialOnboardingFlow() {
               {screen.id === 'projections'  && <ScreenProjections draft={draft} rm={rm} />}
               {screen.id === 'props'       && <ScreenProps draft={draft} rm={rm} />}
               {screen.id === 'whale'       && <ScreenWhale draft={draft} rm={rm} />}
-              {screen.id === 'research'    && <ScreenResearch draft={draft} rm={rm} />}
+              {screen.id === 'insider'     && <ScreenInsider draft={draft} rm={rm} />}
               {screen.id === 'roi'         && <ScreenRoi draft={draft} onBetSize={handleBetSize} onBetsPerDay={handleBetsPerDay} rm={rm} />}
               {screen.id === 'final'       && <ScreenFinal draft={draft} isSubmitting={isSubmitting} onSubmit={handleSubmit} rm={rm} />}
             </motion.div>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import { CORE_TOOLS, CORE_TOOLS_BY_KEY, type CoreToolKey } from '@/lib/core-tools'
@@ -97,52 +97,52 @@ const TOOL_GUIDE_CONFIGS: Partial<Record<CoreToolKey, ToolGuideConfig>> = {
     ctaPrimaryLabel: 'Open Sharp Props',
   },
   'sharp-projections': {
-    guideLabel: 'Sharp Projections Guide',
-    heroTitle: 'Attack stale numbers before the market fully catches up.',
+    guideLabel: 'Sharp Movement Guide',
+    heroTitle: 'Track market pressure before the board fully settles.',
     heroDescription:
-      'Scan projected edges against live lines, rank the best value quickly, and route your action into the highest-quality opportunities first.',
-    screenshotTitle: 'Find the best projected edges in seconds',
+      'Follow Pinnacle movement, limit expansion, and quote velocity in one board so you can prioritize actionable movement quickly.',
+    screenshotTitle: 'Find the strongest movement signals in seconds',
     screenshotSrc: '/sharpprojections.png',
-    screenshotAlt: 'Sharp Projections table showing ranked market edges and line context.',
+    screenshotAlt: 'Sharp Movement table showing ranked line movement and limit context.',
     callouts: [
       {
-        title: 'Edge Ranking',
-        body: 'Top edges are sorted so you can prioritize the highest-value lines first.',
+        title: 'Movement Ranking',
+        body: 'Rows are ranked by line velocity and limit expansion so pressure stands out immediately.',
       },
       {
-        title: 'Market Context',
-        body: 'Each row shows current line context so you can compare fair value vs the live number.',
+        title: 'Pinnacle Context',
+        body: 'Each row shows Pinnacle-first line, odds, and max limits for cleaner execution context.',
       },
       {
         title: 'Execution Focus',
-        body: 'Use the board to quickly shortlist which bets deserve immediate attention.',
+        body: 'Use movement and limit history to shortlist which markets deserve immediate attention.',
       },
     ],
-    longTermTitle: 'How to use Sharp Projections for long-term profit',
+    longTermTitle: 'How to use Sharp Movement for long-term profit',
     longTermIntro:
-      'Sharp Projections should drive your daily decision queue. The goal is to repeatedly capture mispriced lines before market correction.',
+      'Sharp Movement should drive your timing decisions. The goal is to repeatedly act where line movement and expanding limits align.',
     longTermSteps: [
       {
-        title: '1. Build your card from top-ranked edges only',
-        body: 'Start each session by selecting a narrow list of highest-quality edges. Avoid diluting edge by adding low-conviction plays.',
+        title: '1. Build your card from top-ranked movement only',
+        body: 'Start each session from the strongest movement and limit expansion rows. Avoid forcing action in flat markets.',
       },
       {
-        title: '2. Prioritize markets with cleaner execution',
-        body: 'Favor lines where you can consistently get near-top pricing. A smaller model edge with reliable execution often outperforms bigger but unreachable edges.',
+        title: '2. Prioritize clean Pinnacle-led moves',
+        body: 'Focus on markets where movement is consistent and limits are expanding across sharp books.',
       },
       {
-        title: '3. Monitor line movement against your entry',
-        body: 'Review whether your numbers move toward your position after entry. This helps validate signal quality and timing.',
+        title: '3. Monitor movement after entry',
+        body: 'Track whether post-entry movement continues in your direction and whether limits remain supportive.',
       },
       {
         title: '4. Review performance by league and market',
-        body: 'Segment results by sport, market type, and edge bucket. Reallocate volume toward segments where CLV and ROI persist.',
+        body: 'Segment results by sport and market type, then scale only setups where movement quality and execution persist.',
       },
     ],
     ctaTitle: 'Ready to hit the best numbers faster?',
     ctaDescription:
-      'Open Sharp Projections and work from ranked edges instead of manually scanning every market.',
-    ctaPrimaryLabel: 'Open Sharp Projections',
+      'Open Sharp Movement and work from ranked line pressure instead of manually scanning every market.',
+    ctaPrimaryLabel: 'Open Sharp Movement',
   },
   'whale-feed': {
     guideLabel: 'Whale Detector Guide',
@@ -291,7 +291,9 @@ const TOOL_GUIDE_CONFIGS: Partial<Record<CoreToolKey, ToolGuideConfig>> = {
 }
 
 export function generateStaticParams() {
-  return CORE_TOOLS.map((tool) => ({ tool: tool.key }))
+  return CORE_TOOLS
+    .filter((tool) => tool.key !== 'research-mode')
+    .map((tool) => ({ tool: tool.key }))
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -307,6 +309,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default function ToolDetailPage({ params }: PageProps) {
   const key = params.tool
   if (!isCoreToolKey(key)) notFound()
+  if (key === 'research-mode') {
+    redirect('/market-projections')
+  }
   const tool = CORE_TOOLS_BY_KEY[key]
 
   const guideConfig = TOOL_GUIDE_CONFIGS[tool.key]

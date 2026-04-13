@@ -2,14 +2,11 @@
 
 import {
   Activity,
-  Beaker,
   DollarSign,
   Eye,
-  FileText,
   MessageSquare,
   Percent,
   Radar,
-  Radio,
   Instagram,
   Twitter,
 } from "lucide-react"
@@ -25,19 +22,7 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
         title: "Projections",
         items: [
           {
-            label: "Sharp Projections",
-            description: "Market-driven lines + edges",
-            icon: Radar,
-            href: "/market-projections",
-          },
-          {
-            label: "Sharp Props",
-            description: "Prediction market order books",
-            icon: Percent,
-            href: "/sharp-props",
-          },
-          {
-            label: "Whale Detector",
+            label: "Whale Feed",
             description: "Large-ticket flow and clustering",
             icon: Activity,
             href: "/sharp-detector",
@@ -48,16 +33,17 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
             icon: Eye,
             href: "/polymarket-insider",
           },
-        ],
-      },
-      {
-        title: "Research",
-        items: [
           {
-            label: "Sharp Action",
-            description: "Why sharps are targeting games",
-            icon: Beaker,
-            href: "/research/sharp-action",
+            label: "Sharp Props",
+            description: "Prediction market order books",
+            icon: Percent,
+            href: "/sharp-props",
+          },
+          {
+            label: "Sharp Movement",
+            description: "Pinnacle line movement + limit expansion",
+            icon: Radar,
+            href: "/market-projections",
           },
         ],
       },
@@ -71,8 +57,8 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
         title: "Guides",
         items: [
           {
-            label: "Sharp Projections",
-            description: "How to read market edges",
+            label: "Sharp Movement",
+            description: "How to read line movement and limits",
             icon: Radar,
             href: "/tools/sharp-projections",
           },
@@ -83,7 +69,7 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
             href: "/tools/sharp-props",
           },
           {
-            label: "Whale Detector",
+            label: "Whale Feed",
             description: "How to use live whale tape and clustering",
             icon: Activity,
             href: "/tools/whale-feed",

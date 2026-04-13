@@ -6,15 +6,13 @@ import Image from 'next/image'
 import {
   Activity,
   ArrowRight,
-  ChartNoAxesCombined,
   Eye,
-  FlaskConical,
   Waves,
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// Data
 
 type Stat = { label: string; value: string }
 
@@ -30,17 +28,17 @@ type Feature = {
 
 const FEATURES: Feature[] = [
   {
-    id: 'sharp-projections',
-    title: 'Sharp Projections',
-    icon: <ChartNoAxesCombined className="h-[1em] w-[1em]" />,
-    screenshotSrc: '/sharpprojections.png',
-    outcome: 'See which games the model disagrees with the market on. Bet before the line corrects.',
+    id: 'whale-feed',
+    title: 'Whale Feed',
+    icon: <Waves className="h-[1em] w-[1em]" />,
+    screenshotSrc: '/updatedwhalefeed.png',
+    outcome: '$82,000 just hit the Lakers over. You saw it before the line moved.',
     description:
-      'Sharp Projections refreshes every 15 minutes, ranks the board by edge strength, and surfaces where model prices diverge from market prices — before the public closes the gap.',
+      'Whale Feed monitors outsized bets by market and timing, then maps that action to line movement and current book prices - so you can distinguish legitimate steam from noise.',
     stats: [
-      { label: 'Avg CLV', value: '+9.8%' },
-      { label: 'Refresh cycle', value: '15 min' },
-      { label: 'Tracked picks', value: '1,240' },
+      { label: 'Ticket threshold', value: '$50K+' },
+      { label: 'Move captured', value: '+0.9 pts' },
+      { label: 'Tracked alerts', value: '3,420' },
     ],
   },
   {
@@ -50,25 +48,11 @@ const FEATURES: Feature[] = [
     screenshotSrc: '/Screenshot%202026-03-02%20015116.png',
     outcome: 'Read the orderbook before books adjust. Get the lean before it shows in the number.',
     description:
-      'Sharp Props scans exchange depth, wall concentration, and side pressure to identify where informed prop money is positioning — so you move before books catch up.',
+      'Sharp Props scans exchange depth, wall concentration, and side pressure to identify where informed prop money is positioning - so you move before books catch up.',
     stats: [
       { label: 'Long-term ROI', value: '+8.1%' },
       { label: 'Top over lean', value: '78%' },
       { label: 'Tracked props', value: '980' },
-    ],
-  },
-  {
-    id: 'whale-feed',
-    title: 'Whale Feed',
-    icon: <Waves className="h-[1em] w-[1em]" />,
-    screenshotSrc: '/updatedwhalefeed.png',
-    outcome: '$82,000 just hit the Lakers over. You saw it before the line moved.',
-    description:
-      'Whale Feed monitors outsized bets by market and timing, then maps that action to line movement and current book prices — so you can distinguish legitimate steam from noise.',
-    stats: [
-      { label: 'Ticket threshold', value: '$50K+' },
-      { label: 'Move captured', value: '+0.9 pts' },
-      { label: 'Tracked alerts', value: '3,420' },
     ],
   },
   {
@@ -81,27 +65,13 @@ const FEATURES: Feature[] = [
       'Insider Feed tracks thousands of profitable wallets on Polymarket, scores their open sports positions by authority and conviction, and shows you exactly where proven winners are allocating capital.',
     stats: [
       { label: 'Wallet ROI floor', value: '>0%' },
-      { label: 'Score range', value: '60–99' },
+      { label: 'Score range', value: '60-99' },
       { label: 'Wallets tracked', value: '1,000+' },
-    ],
-  },
-  {
-    id: 'research-mode',
-    title: 'Research Mode',
-    icon: <FlaskConical className="h-[1em] w-[1em]" />,
-    screenshotSrc: '/research.png',
-    outcome: 'Your CLV went from +1.1% to +4.3%. This is what a disciplined process looks like.',
-    description:
-      'Research Mode aggregates closing outcomes, move patterns, and trend splits so every bet generates feedback you can study. It turns picks into a repeatable, improvable system.',
-    stats: [
-      { label: 'Long-term ROI', value: '+6.9%' },
-      { label: 'False signals', value: '-22%' },
-      { label: 'Backtests run', value: '640' },
     ],
   },
 ]
 
-// ─── Screenshot preview ──────────────────────────────────────────────────────
+// Screenshot preview
 
 function FeatureScreenshot({ feature }: { feature: Feature }) {
   return (
@@ -117,7 +87,7 @@ function FeatureScreenshot({ feature }: { feature: Feature }) {
   )
 }
 
-// ─── Desktop: left copy panel ─────────────────────────────────────────────────
+// Desktop: left copy panel
 
 function FeatureCopy({
   feature,
@@ -203,7 +173,7 @@ function FeatureCopy({
   )
 }
 
-// ─── Mobile: stacked feature cards ────────────────────────────────────────────
+// Mobile: stacked feature cards
 
 function MobileFeatureCard({ feature }: { feature: Feature }) {
   return (
@@ -242,12 +212,12 @@ function MobileFeatureCard({ feature }: { feature: Feature }) {
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// Main component
 
 export function FeatureShowcaseHub() {
   const rm = useReducedMotion() ?? false
   const [activeId, setActiveId] = useState(FEATURES[0].id)
-  const triggerRefs = useRef<Array<HTMLDivElement | null>>([null, null, null, null, null])
+  const triggerRefs = useRef<Array<HTMLDivElement | null>>([null, null, null])
 
   useEffect(() => {
     const observers: IntersectionObserver[] = []
@@ -272,20 +242,13 @@ export function FeatureShowcaseHub() {
   return (
     <section id="features" className="relative">
       {/* Section header */}
-      <div className="mb-12 sm:mb-16">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
-          Tools
-        </p>
-        <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
-          Five tools. One workflow. Zero guessing.
+      <div className="text-center">
+        <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
+          How it works:
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-white/62 sm:text-base">
-          Every tool in Delta is built around the same principle: get the signal before the market
-          prices it in. Here&apos;s what that looks like in practice.
-        </p>
       </div>
 
-      {/* ── Desktop: sticky scroll ── */}
+      {/* Desktop: sticky scroll */}
       <div className="hidden lg:grid lg:grid-cols-[1fr_1fr] lg:gap-12 xl:grid-cols-[1fr_55%] xl:gap-16">
         {/* Left: scroll triggers */}
         <div>
@@ -310,7 +273,7 @@ export function FeatureShowcaseHub() {
               href="/auth/signup"
               className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-300 transition hover:text-emerald-200"
             >
-              All five tools included — start free
+              All three tools included - start free
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -364,7 +327,7 @@ export function FeatureShowcaseHub() {
         </div>
       </div>
 
-      {/* ── Mobile: stacked cards ── */}
+      {/* Mobile: stacked cards */}
       <div className="space-y-6 lg:hidden">
         {FEATURES.map((feature) => (
           <MobileFeatureCard key={feature.id} feature={feature} />
@@ -374,7 +337,7 @@ export function FeatureShowcaseHub() {
             href="/auth/signup"
             className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-300"
           >
-            All five tools included — start free
+            All three tools included - start free
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

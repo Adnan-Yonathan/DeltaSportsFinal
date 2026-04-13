@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { TrendingUp } from 'lucide-react'
 
 const RESEARCH_NAV_ITEMS = [
-  { href: '/research/sharp-action', label: 'Sharp Action', icon: TrendingUp },
+  { href: '/market-projections', label: 'Sharp Movement', icon: TrendingUp },
 ]
 
 export default function ResearchNav() {

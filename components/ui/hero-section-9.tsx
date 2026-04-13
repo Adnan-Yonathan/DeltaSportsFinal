@@ -16,11 +16,11 @@ export function HeroSection9() {
           <div className="relative mx-auto max-w-6xl px-6 py-24">
             <div className="relative z-10 mx-auto max-w-3xl text-center">
               <h1 className="text-balance text-5xl font-semibold leading-tight tracking-tight text-white xl:text-6xl">
-                See sharp money before the line moves.
+                <span className="block">Sports betting intel</span>
+                <span className="block">made simple.</span>
               </h1>
               <p className="mx-auto my-8 max-w-2xl text-xl text-zinc-300">
-                Track whale pressure, compare books in real time, and catch market shifts before they
-                settle into public prices.
+                Pick your sport. Follow market signals. That&apos;s it.
               </p>
 
               <div className="mx-auto flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:gap-4">

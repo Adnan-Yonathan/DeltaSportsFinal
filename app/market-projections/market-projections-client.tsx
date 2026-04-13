@@ -87,7 +87,7 @@ export default function MarketProjectionsClient({
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-white/60">
             <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-            Loading projections...
+            Loading sharp movement...
           </div>
         </div>
       )}

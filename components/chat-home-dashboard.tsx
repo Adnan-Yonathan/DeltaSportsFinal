@@ -313,7 +313,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
                   Hot Games (Grouped)
                 </h2>
               </div>
-              <Link href="/research/sharp-action" className="text-cyan-200/80 hover:text-cyan-100">
+              <Link href="/market-projections" className="text-cyan-200/80 hover:text-cyan-100">
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>

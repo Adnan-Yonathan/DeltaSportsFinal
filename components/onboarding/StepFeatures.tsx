@@ -14,8 +14,8 @@ const MAX_SELECTIONS = 3
 const GOALS = [
   {
     id: "sharp-projections",
-    name: "Sharp Projections",
-    description: "Model-driven edges on spreads, totals, and moneylines.",
+    name: "Sharp Movement",
+    description: "Track opening-to-current line moves and spot market shifts early.",
     icon: TrendingUp,
     color: "from-emerald-500 to-emerald-500",
   },

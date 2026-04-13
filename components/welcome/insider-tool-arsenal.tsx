@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowRight, ArrowUpRight, Beaker, Eye, Radar, Waves } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Eye, Radar, Waves } from 'lucide-react'
 import { CardSpotlight } from '@/components/ui/card-spotlight'
 
 type Tool = {
@@ -20,7 +20,7 @@ type Tool = {
 const TOOLS: Tool[] = [
   {
     key: 'sharp-projections',
-    title: 'Sharp Projections',
+    title: 'Sharp Movement',
     subtitle: 'Find the gap first',
     href: '/tools/sharp-projections',
     meta: 'Market-driven lines: spreads, totals, moneylines.',
@@ -59,16 +59,6 @@ const TOOLS: Tool[] = [
     cta: 'View guide',
     Icon: Eye,
     accent: 'from-violet-300/15 via-black/60 to-black',
-  },
-  {
-    key: 'research-mode',
-    title: 'Research Mode',
-    subtitle: 'Validate long-term',
-    href: '/tools/research-mode',
-    meta: 'Explain movement, study closes, and backtest edges.',
-    cta: 'View guide',
-    Icon: Beaker,
-    accent: 'from-amber-300/15 via-black/60 to-black',
   },
 ]
 

@@ -403,19 +403,19 @@ function LaptopMockup({
 
 export function CinematicLandingHero({
   brandName = "Delta Sports",
-  tagline1 = "See sharp money",
-  tagline2 = "before the line moves.",
+  tagline1 = "Sports betting intel",
+  tagline2 = "made simple.",
   cardHeading = "Proprietary market intelligence all in one platform.",
   cardDescription = (
     <>
-      <span className="text-white font-semibold">Delta Sports</span> surfaces live sharp signals to give you
-      consistently profitable bets across all major sports.
+      <span className="text-white font-semibold">Delta Sports</span> gives you sharp money signals,
+      whale tracking, and betting analytics in one place.
     </>
   ),
   metricValue = 312,
   metricLabel = "Live Signals (24h)",
   ctaHeading = "Track the market in real time.",
-  ctaDescription = "Live whale alerts, edge-ranked projections, and orderbook pressure before books adjust.",
+  ctaDescription = "Pick your sport. Follow market signals. That's it.",
   className,
   ...props
 }: CinematicLandingHeroProps) {

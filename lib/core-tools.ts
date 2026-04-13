@@ -19,16 +19,16 @@ export type CoreTool = {
 export const CORE_TOOLS: CoreTool[] = [
   {
     key: 'sharp-projections',
-    label: 'Sharp Projections',
-    shortLabel: 'Projections',
-    summary: 'Market-driven lines that show where the number is wrong.',
+    label: 'Sharp Movement',
+    shortLabel: 'Movement',
+    summary: 'Pinnacle line movement and limit expansion in one board.',
     icon: 'radar',
     guideRoute: '/tools/sharp-projections',
     productRoute: '/market-projections',
     bullets: [
-      'See fair lines vs market prices at a glance.',
-      'Sort by edge and confidence to find the best gaps.',
-      'Use it first to route where you spend attention.',
+      'Track opening-to-current movement across spreads, totals, and moneylines.',
+      'Rank the board by move velocity and limit expansion.',
+      'Use it first to route where sharp market pressure is building.',
     ],
   },
   {
@@ -61,16 +61,16 @@ export const CORE_TOOLS: CoreTool[] = [
   },
   {
     key: 'research-mode',
-    label: 'Research Mode',
-    shortLabel: 'Research',
-    summary: 'Explain movement, validate a thesis, and study closes.',
-    icon: 'beaker',
-    guideRoute: '/tools/research-mode',
-    productRoute: '/research/sharp-action',
+    label: 'Sharp Movement',
+    shortLabel: 'Movement',
+    summary: 'Pinnacle line movement and limit expansion in one board.',
+    icon: 'radar',
+    guideRoute: '/tools/sharp-projections',
+    productRoute: '/market-projections',
     bullets: [
-      'Understand why the market is moving.',
-      'Backtest and review what closes actually did.',
-      'Use it to build a repeatable process.',
+      'Track opening-to-current movement across spreads, totals, and moneylines.',
+      'Rank the board by move velocity and limit expansion.',
+      'Use it first to route where sharp market pressure is building.',
     ],
   },
   {

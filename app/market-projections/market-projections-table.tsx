@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Image from "next/image"
 import {
   CartesianGrid,
   Line,
@@ -11,151 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import ShareProjectionButton from "@/components/ShareProjectionButton"
-import { INSIDER_ODDS_SOURCE_ORDER, getOddsSource } from "@/lib/config/odds-sources"
-import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
 
 type EdgeFilter = "all" | "spread" | "moneyline" | "total"
-type MarketFilter = Exclude<EdgeFilter, "all">
+type MarketKey = Exclude<EdgeFilter, "all">
 type AccessTier = "free" | "sharp" | "syndicate" | null
-
-type MarketEdge = {
-  edgePercent: number
-}
-
-type SharpProjectionMarket = {
-  side: string
-  probability: number
-  confidenceInterval?: { low: number; high: number }
-  edgePercent: number
-  breakEven: number
-  sharpFairOdds?: number
-  limitPressureScore?: number
-  limitPressureLabel?: string
-}
-
-type EdgeGame = {
-  oddsApiId?: string
-  sport?: string
-  matchup: string
-  homeTeam: string
-  awayTeam: string
-  commenceTime: string
-  spread?: {
-    marketLine: number
-    targetLine: number
-    bestBook?: string
-    bestOdds?: number
-    bestHomeBook?: string
-    bestHomeOdds?: number
-    bestAwayBook?: string
-    bestAwayOdds?: number
-    fanduel?: {
-      homeOdds?: number
-      awayOdds?: number
-    }
-    favoredTeam?: string
-    prediction?: { line: number; book: string; odds: number }
-    bookQuotes?: Partial<Record<BookFilterKey, BookSpreadQuote>>
-  }
-  total?: {
-    marketLine: number
-    targetLine: number
-    bestBook?: string
-    bestOdds?: number
-    bestUnderOdds?: number
-    fanduel?: {
-      overOdds?: number
-      underOdds?: number
-    }
-    prediction?: { line: number; book: string; overOdds: number; underOdds: number }
-    bookQuotes?: Partial<Record<BookFilterKey, BookTotalQuote>>
-  }
-  moneyline?: {
-    sportsbook?: {
-      homeOdds?: number
-      homeBook?: string
-      awayOdds?: number
-      awayBook?: string
-    }
-    fanduel?: {
-      homeOdds?: number
-      awayOdds?: number
-    }
-    model?: {
-      homeOdds?: number
-      awayOdds?: number
-      homeProbability?: number
-    }
-    prediction?: {
-      homeOdds?: number
-      homeBook?: string
-      awayOdds?: number
-      awayBook?: string
-    }
-    bookQuotes?: Partial<Record<BookFilterKey, BookMoneylineQuote>>
-  }
-  sharpSignals: Array<{
-    type: string
-    market: string
-    side: string
-    strength: number
-  }>
-  lineMovements: Array<{
-    market: string
-    openingLine: string | number
-    currentLine: string | number
-    isSharp?: boolean
-    isSignificant?: boolean
-  }>
-  whaleAlerts?: Array<{
-    id: string
-    source: "kalshi" | "polymarket" | "history"
-    marketTitle: string
-    outcome: string
-    notional: number
-    americanOdds?: number | null
-    timestamp: string
-    status: "pending" | "respected" | "faded"
-  }>
-  sharpProjections?: {
-    spread?: SharpProjectionMarket
-    total?: SharpProjectionMarket
-    moneyline?: SharpProjectionMarket
-    tier?: string
-  }
-}
-
-const coerceNumber = (value?: unknown) => {
-  if (value == null) return null
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
-type AccessConfig = {
-  allowedFilters: EdgeFilter[]
-  maxRows: Partial<Record<EdgeFilter, number>>
-}
-
-type BookFilterKey = (typeof INSIDER_ODDS_SOURCE_ORDER)[number]
-
-type BookOption = {
-  key: BookFilterKey
-  label: string
-  logoSrc?: string
-}
-
-type BookOddsCandidate = {
-  book: BookFilterKey
-  odds: number
-}
 
 type BookSpreadQuote = {
   homeLine?: number
@@ -164,8 +24,6 @@ type BookSpreadQuote = {
   awayLine?: number
   awayOdds?: number
   awayLimit?: number
-  source?: string
-  bookTitle?: string
 }
 
 type BookTotalQuote = {
@@ -174,8 +32,6 @@ type BookTotalQuote = {
   underOdds?: number
   overLimit?: number
   underLimit?: number
-  source?: string
-  bookTitle?: string
 }
 
 type BookMoneylineQuote = {
@@ -183,14 +39,57 @@ type BookMoneylineQuote = {
   awayOdds?: number
   homeLimit?: number
   awayLimit?: number
-  source?: string
-  bookTitle?: string
 }
 
-type LineHistoryPoint = {
-  t: string
-  line: number | null
-  odds: number | null
+type LineMovement = {
+  market?: string
+  openingLine?: string | number
+  currentLine?: string | number
+  isSharp?: boolean
+  isSignificant?: boolean
+}
+
+type EdgeGame = {
+  oddsApiId?: string
+  sport?: string
+  matchup?: string
+  homeTeam?: string
+  awayTeam?: string
+  commenceTime?: string
+  commence_time?: string
+  spread?: {
+    bookQuotes?: Record<string, BookSpreadQuote>
+  }
+  total?: {
+    bookQuotes?: Record<string, BookTotalQuote>
+  }
+  moneyline?: {
+    bookQuotes?: Record<string, BookMoneylineQuote>
+  }
+  lineMovements?: LineMovement[]
+}
+
+type MovementRow = {
+  id: string
+  oddsApiId?: string
+  sport: string
+  homeTeam: string
+  awayTeam: string
+  matchup: string
+  commenceTime: string | null
+  market: MarketKey
+  marketLabel: string
+  pinnacleLine: string
+  pinnacleOdds: string
+  movementLabel: string
+  movementDelta: number | null
+  movementMagnitude: number
+  isSharpMove: boolean
+  isSignificantMove: boolean
+  limitLabel: string
+  limitExpansion: number | null
+  maxLimit: number | null
+  score: number
 }
 
 type LimitHistoryPoint = {
@@ -204,87 +103,108 @@ type LimitHistoryPoint = {
   odds?: number | null
 }
 
-const BOOK_LOGOS: Partial<Record<BookFilterKey, string>> = {
-  fanduel: "/fanduel.jpeg",
-  draftkings: "/draftkings.png",
-  betmgm: "/BETMGM-Logo-Color-Scheme-PNG-thumb.png",
-  caesars: "/CZR_BIG.D-96274f93.png",
-  betrivers: "/betrivers.png",
-  hardrockbet: "/hardrock.png",
-  fanatics: "/newfanaticslogo.png",
-  espnbet: "/ESPN-BET-Logo.png",
-  fliff: "/fliff.png",
-  circa: "/circasports.png",
-  pinnacle: "/pinnacle.jpg",
-  novig: "/Novig.png",
-  prophetx: "/ProphetX.png",
-  polymarket: "/polymarket.png",
-  kalshi: "/kalshi.png",
+type HistoryLinePoint = {
+  t: string
+  line: number
 }
 
-const BOOK_OPTIONS: BookOption[] = INSIDER_ODDS_SOURCE_ORDER.map((key) => ({
-  key,
-  label: getOddsSource(key)?.label ?? key.toUpperCase(),
-  logoSrc: BOOK_LOGOS[key],
-}))
+type HistoryOddsPoint = {
+  t: string
+  odds: number
+}
 
-const BOOK_OPTIONS_BY_KEY: Record<BookFilterKey, BookOption> = BOOK_OPTIONS.reduce(
-  (acc, option) => {
-    acc[option.key] = option
-    return acc
-  },
-  {} as Record<BookFilterKey, BookOption>
-)
+type HourlyMovementPoint = {
+  t: string
+  line: number | null
+  odds: number | null
+}
 
-const DEFAULT_BOOK_FILTER: BookFilterKey = "fanduel"
-const MARKET_FILTERS: MarketFilter[] = ["spread", "moneyline", "total"]
-const BOOK_SCATTER_POINTS: Array<{ x: number; y: number }> = [
-  { x: 12, y: 14 },
-  { x: 32, y: 10 },
-  { x: 52, y: 16 },
-  { x: 74, y: 10 },
-  { x: 88, y: 19 },
-  { x: 20, y: 33 },
-  { x: 40, y: 30 },
-  { x: 60, y: 35 },
-  { x: 80, y: 29 },
-  { x: 10, y: 52 },
-  { x: 30, y: 54 },
-  { x: 50, y: 50 },
-  { x: 70, y: 56 },
-  { x: 88, y: 49 },
-  { x: 22, y: 73 },
-  { x: 43, y: 72 },
-  { x: 64, y: 76 },
-  { x: 84, y: 70 },
-]
+type PriceLevelRow = {
+  line: number | null
+  odds: number | null
+  maxForLimit: number | null
+  maxAgainstLimit: number | null
+  maxAbsNetLimit: number | null
+  latestForLimit: number | null
+  latestAgainstLimit: number | null
+  latestNetLimit: number | null
+  lastSeen: string
+  samples: number
+}
 
-const resolveAccessConfig = (tier?: AccessTier): AccessConfig => {
-  if (tier === "sharp" || tier === "syndicate") {
-    return { allowedFilters: ["all", "spread", "moneyline", "total"], maxRows: {} }
+const MARKET_LABELS: Record<MarketKey, string> = {
+  spread: "Spread",
+  total: "Total",
+  moneyline: "Moneyline",
+}
+
+const SPORT_LABELS: Record<string, string> = {
+  basketball_nba: "NBA",
+  basketball_wnba: "WNBA",
+  basketball_ncaab: "NCAAB",
+  americanfootball_nfl: "NFL",
+  americanfootball_ncaaf: "CFB",
+  icehockey_nhl: "NHL",
+  baseball_mlb: "MLB",
+}
+
+const SHARP_BOOK_PRIORITY = ["pinnacle", "circa", "novig", "prophetx"]
+const FILTERS: EdgeFilter[] = ["all", "spread", "moneyline", "total"]
+
+const coerceNumber = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const direct = Number(value)
+    if (Number.isFinite(direct)) return direct
+    const match = value.match(/[-+]?\d+(\.\d+)?/)
+    if (!match) return null
+    const parsed = Number(match[0])
+    return Number.isFinite(parsed) ? parsed : null
   }
-  return { allowedFilters: ["all", "spread", "moneyline", "total"], maxRows: {} }
+  return null
 }
 
-const formatSigned = (value?: number | string | null) => {
-  const numeric = coerceNumber(value)
-  if (numeric == null) return "n/a"
-  return numeric > 0 ? `+${numeric.toFixed(1)}` : numeric.toFixed(1)
+const americanToImplied = (odds: number | null) => {
+  if (odds == null || !Number.isFinite(odds) || odds === 0) return null
+  if (odds > 0) return 100 / (odds + 100)
+  return Math.abs(odds) / (Math.abs(odds) + 100)
 }
 
-const formatOdds = (value?: number | string | null) => {
-  const numeric = coerceNumber(value)
-  if (numeric == null) return "n/a"
-  return numeric > 0 ? `+${Math.round(numeric)}` : `${Math.round(numeric)}`
+const formatSignedNumber = (value: number | null, digits = 1) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  return value > 0 ? `+${value.toFixed(digits)}` : value.toFixed(digits)
 }
 
-const formatCurrency = (value?: number | string | null) => {
-  const numeric = coerceNumber(value)
-  if (numeric == null) return "n/a"
-  return `$${Math.round(numeric).toLocaleString("en-US")}`
+const formatOdds = (value: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  const rounded = Math.round(value)
+  return rounded > 0 ? `+${rounded}` : `${rounded}`
 }
 
-const formatShortDateTime = (value?: string | null) => {
+const formatLineValue = (value: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  return value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2)
+}
+
+const formatLimit = (value: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  return `$${Math.round(value).toLocaleString("en-US")}`
+}
+
+const formatSignedLimit = (value: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  const rounded = Math.round(value)
+  const formatted = `$${Math.abs(rounded).toLocaleString("en-US")}`
+  return rounded > 0 ? `+${formatted}` : rounded < 0 ? `-${formatted}` : "$0"
+}
+
+const toPercentRatio = (value: number | null, max: number) => {
+  if (value == null || !Number.isFinite(value) || max <= 0) return 0
+  const ratio = (Math.abs(value) / max) * 100
+  return Math.max(0, Math.min(100, ratio))
+}
+
+const formatShortTime = (value?: string | null) => {
   if (!value) return "n/a"
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
@@ -296,1350 +216,223 @@ const formatShortDateTime = (value?: string | null) => {
   })
 }
 
-const formatProbability = (value?: number | string | null) => {
-  const numeric = coerceNumber(value)
-  if (numeric == null) return "n/a"
-  return `${(numeric * 100).toFixed(1)}%`
+const resolveSportLabel = (sport?: string | null) => {
+  if (!sport) return "N/A"
+  return SPORT_LABELS[sport] ?? sport
 }
 
-const resolveBookInitials = (label: string) => {
-  const words = label
-    .replace(/[()]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean)
-  if (words.length === 0) return "BK"
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase()
-}
-
-const resolveSportLabel = (sportKey?: string) => {
-  const map: Record<string, string> = {
-    basketball_nba: "NBA",
-    basketball_wnba: "WNBA",
-    basketball_ncaab: "NCAAB",
-    americanfootball_nfl: "NFL",
-    americanfootball_ncaaf: "CFB",
-    icehockey_nhl: "NHL",
-    baseball_mlb: "MLB",
-  }
-  return sportKey ? map[sportKey] ?? sportKey.toUpperCase() : "SPORTS"
-}
-
-const resolveGameSportKey = (game: EdgeGame, fallbackSport?: string) =>
-  game.sport ?? fallbackSport
-
-const isUpcomingGame = (commenceTime?: string) => {
-  if (!commenceTime) return false
-  const time = Date.parse(commenceTime)
-  if (!Number.isFinite(time)) return false
-  // Hide a bet as soon as the game starts.
-  return time > Date.now()
-}
-
-type DateWindowFilter = "all" | "today" | "24h" | "3d"
-const DEFAULT_LEAGUE_FILTER_OPTIONS = ["NBA", "NCAAB", "CFB", "NFL", "NHL", "MLB"]
-
-const resolveLineFromMovements = (
-  game: EdgeGame,
-  market: "spread" | "total"
-) => {
-  const move = game.lineMovements.find((entry) => entry.market === market)
-  return coerceNumber(move?.currentLine ?? move?.openingLine)
-}
-
-const resolveMarketSpreadLine = (game: EdgeGame) =>
-  coerceNumber(game.spread?.marketLine) ?? resolveLineFromMovements(game, "spread")
-
-const formatSpreadLineLabel = (game: EdgeGame, line: number) => {
-  if (line === 0) return "PK"
-  if (line < 0) return `${game.homeTeam} ${formatSigned(line)}`
-  return `${game.awayTeam} ${formatSigned(-line)}`
-}
-
-const resolveLineHistoryFallback = (game: EdgeGame, market: MarketFilter): LineHistoryPoint[] => {
-  const move = game.lineMovements.find((entry) => entry.market === market)
-  if (!move) return []
-  const opening = coerceNumber(move.openingLine)
-  const current = coerceNumber(move.currentLine)
-  if (opening == null || current == null) return []
-
-  const now = Date.now()
-  const commenceMs = Date.parse(game.commenceTime ?? "")
-  const startMs = Number.isFinite(commenceMs) ? Math.max(now - 6 * 60 * 60 * 1000, commenceMs - 8 * 60 * 60 * 1000) : now - 6 * 60 * 60 * 1000
-
-  return [
-    { t: new Date(startMs).toISOString(), line: opening, odds: null },
-    { t: new Date(now).toISOString(), line: current, odds: null },
-  ]
-}
-
-const formatHistoryTime = (value?: string | null) => {
-  if (!value) return "n/a"
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-const matchesDateWindow = (commenceTime: string, window: DateWindowFilter) => {
-  if (window === "all") return true
-  const time = Date.parse(commenceTime)
-  if (!Number.isFinite(time)) return false
-
-  const now = Date.now()
-  if (window === "24h") return time >= now && time <= now + 24 * 60 * 60 * 1000
-  if (window === "3d") return time >= now && time <= now + 72 * 60 * 60 * 1000
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(today.getDate() + 1)
-  return time >= today.getTime() && time < tomorrow.getTime()
-}
-
-const resolveLineCellValue = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick,
-  selectedBook: BookFilterKey
-) => {
-  const quotedLine = resolveBookLineValue(game, filter, pick, selectedBook)
-  if (quotedLine != null) {
-    if (filter === "spread") return quotedLine === 0 ? "PK" : formatSigned(quotedLine)
-    if (filter === "total") return quotedLine.toFixed(1)
-  }
-
-  if (filter === "spread") {
-    const line = resolveMarketSpreadLine(game)
-    if (line == null) return "--"
-    return line === 0 ? "PK" : formatSigned(line)
-  }
-  if (filter === "total") {
-    const line =
-      coerceNumber(game.total?.marketLine) ?? resolveLineFromMovements(game, "total")
-    return line == null ? "--" : line.toFixed(1)
-  }
-  return "--"
-}
-
-const summarizeSharpSignalsPlain = (
-  signals: EdgeGame["sharpSignals"],
-  limit = 2
-) =>
-  signals
-    .slice(0, limit)
-    .map((signal) => formatSharpSignalSummaryLine(signal))
-    .join(" | ")
-
-const resolveModelSpread = (game: EdgeGame) => {
-  // Prefer prediction market line if it differs from market line
-  const predictionLine = coerceNumber(game.spread?.prediction?.line)
-  const marketLine = coerceNumber(game.spread?.marketLine)
-  const targetLine = coerceNumber(game.spread?.targetLine)
-
-  // Use prediction line if available and different from market
-  if (predictionLine != null && marketLine != null) {
-    if (Math.abs(predictionLine - marketLine) > 0.5) {
-      return predictionLine
-    }
-  }
-
-  if (targetLine == null) {
-    return (
-      predictionLine ??
-      marketLine ??
-      resolveLineFromMovements(game, "spread")
-    )
-  }
-  const favoredTeam = game.spread?.favoredTeam
-  if (!favoredTeam) return targetLine
-  const absLine = Math.abs(targetLine)
-  if (favoredTeam === game.homeTeam) return -absLine
-  if (favoredTeam === game.awayTeam) return absLine
-  return targetLine
-}
-
-const computeEdgeRatio = (model?: number | null, market?: number | null) => {
-  if (!Number.isFinite(model) || !Number.isFinite(market)) return null
-  const denom = Math.abs(market ?? 0)
-  if (!denom) return null
-  const gap = Math.abs((model ?? 0) - (market ?? 0))
-  const ratio = 1 - gap / denom
-  return Math.max(0, Math.min(1, ratio))
-}
-
-const DEFAULT_VIG_PERCENT = 4.54
-
-const impliedProbability = (odds?: number | string | null) => {
-  const value = coerceNumber(odds)
-  if (value == null) return null
-  if (value > 0) return 100 / (value + 100)
-  return Math.abs(value) / (Math.abs(value) + 100)
-}
-
-const resolveVigPercent = (oddsA?: number | null, oddsB?: number | null) => {
-  const probA = impliedProbability(oddsA)
-  const probB = impliedProbability(oddsB)
-  if (probA == null || probB == null) return DEFAULT_VIG_PERCENT
-  return Math.max(0, (probA + probB - 1) * 100)
-}
-
-const clampPercent = (value: number) =>
-  Math.max(0, Math.min(100, value))
-
-const resolveEdgeVig = (
-  _sport: string | undefined,
-  oddsA?: number | null,
-  oddsB?: number | null,
-  fallbackVig = DEFAULT_VIG_PERCENT
-) => {
-  if (oddsA == null && oddsB == null) return fallbackVig
-  return resolveVigPercent(oddsA ?? null, oddsB ?? null)
-}
-
-const resolveProjection = (game: EdgeGame, filter: EdgeFilter) => {
-  if (!game.sharpProjections) return null
-  const raw =
-    filter === "spread"
-      ? game.sharpProjections.spread ?? null
-      : filter === "total"
-        ? game.sharpProjections.total ?? null
-        : game.sharpProjections.moneyline ?? null
-  return normalizeProjection(game, filter, raw)
-}
-
-const resolveOppositeSide = (side: string, filter: EdgeFilter, game: EdgeGame) => {
-  if (filter === "total") {
-    const normalized = side.toLowerCase()
-    if (normalized.includes("over")) return "Under"
-    if (normalized.includes("under")) return "Over"
-    return side
-  }
-  if (side === game.homeTeam) return game.awayTeam
-  if (side === game.awayTeam) return game.homeTeam
-  return side
-}
-
-const normalizeProjection = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  projection: SharpProjectionMarket | null
-) => {
-  if (!projection) return null
-  const probability = coerceNumber(projection.probability)
-  if (probability == null || probability >= 0.5) {
-    return projection
-  }
-  const adjustedProbability = 1 - probability
-  const side = resolveOppositeSide(projection.side, filter, game)
-  const breakEven = coerceNumber(projection.breakEven)
-  const edgePercent = breakEven != null
-    ? Math.max(0, (adjustedProbability - breakEven) * 100)
-    : projection.edgePercent
-  return {
-    ...projection,
-    side,
-    probability: adjustedProbability,
-    edgePercent,
-  }
-}
-
-const resolveSpreadProjectionLabel = (
-  game: EdgeGame,
-  projection: SharpProjectionMarket
-) => {
-  const marketLine = coerceNumber(game.spread?.marketLine)
-  const fallbackLine =
-    coerceNumber(game.spread?.prediction?.line) ??
-    coerceNumber(game.spread?.targetLine) ??
-    resolveModelSpread(game)
-  const lineValue = marketLine ?? fallbackLine
-  if (lineValue == null) return projection.side
-
-  const homeLine = lineValue
-  const isHome = projection.side === game.homeTeam
-  const line = isHome ? homeLine : -homeLine
-  return `${projection.side} ${formatSigned(line)}`
-}
-
-const resolveTotalProjectionLabel = (
-  game: EdgeGame,
-  projection: SharpProjectionMarket
-) => {
-  const marketLine = coerceNumber(game.total?.marketLine)
-  const fallbackLine =
-    coerceNumber(game.total?.prediction?.line) ??
-    coerceNumber(game.total?.targetLine) ??
-    resolveLineFromMovements(game, "total")
-  const lineValue = marketLine ?? fallbackLine
-  if (lineValue == null) return projection.side
-  return `${projection.side} ${formatSigned(lineValue)}`
-}
-
-const formatProjectionPick = (
-  label: string | null,
-  projection: SharpProjectionMarket | null
-) => {
-  if (!label || !projection) return "n/a"
-  return `${label} ${formatProbability(projection.probability)}`
-}
-
-type EdgePick = {
-  label: string | null
-  edgePercent: number | null
-  projection?: SharpProjectionMarket | null
-  marketKey?: MarketFilter
-}
-
-type HistoryModalState = {
-  view: "line" | "limit"
-  game: EdgeGame
-  market: MarketFilter
-  pick: EdgePick
-  pressureLabel?: string
-}
-
-const normalizeToken = (value?: string | null) =>
-  String(value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "")
-
-const resolveBookKey = (value?: string | null): BookFilterKey | null => {
-  const normalized = normalizeToken(value)
-  if (!normalized) return null
-  if (normalized.includes("fanduel")) return "fanduel"
-  if (normalized.includes("draftkings")) return "draftkings"
-  if (normalized.includes("betmgm")) return "betmgm"
-  if (normalized.includes("caesars") || normalized.includes("williamhillus")) return "caesars"
-  if (normalized.includes("betrivers")) return "betrivers"
-  if (normalized.includes("hardrock")) return "hardrockbet"
-  if (normalized.includes("fanatics") || normalized.includes("betfanatics")) return "fanatics"
-  if (normalized.includes("espnbet") || normalized.includes("thescorebet")) return "espnbet"
-  if (normalized.includes("fliff")) return "fliff"
-  if (normalized.includes("kalshi")) return "kalshi"
-  if (normalized.includes("pinnacle")) return "pinnacle"
-  if (normalized.includes("circa")) return "circa"
-  if (normalized.includes("polymarket")) return "polymarket"
-  if (normalized.includes("prophetx") || normalized.includes("prophet")) return "prophetx"
-  if (normalized.includes("novig")) return "novig"
-  return null
-}
-
-const pushBookCandidate = (
-  candidates: BookOddsCandidate[],
-  bookLabel: string | undefined,
-  odds: number | null
-) => {
-  const numericOdds = coerceNumber(odds)
-  const key = resolveBookKey(bookLabel)
-  if (numericOdds == null || !key) return
-  candidates.push({ book: key, odds: numericOdds })
-}
-
-const pickBestBookOdds = (candidates: BookOddsCandidate[]) => {
-  if (!candidates.length) return null
-  return candidates.reduce((best, candidate) =>
-    candidate.odds > best.odds ? candidate : best
-  )
-}
-
-const labelMatchesTeam = (label: string | null | undefined, team: string) => {
-  const normalizedLabel = normalizeToken(label)
-  const normalizedTeam = normalizeToken(team)
-  if (!normalizedLabel || !normalizedTeam) return false
-  return (
-    normalizedLabel.includes(normalizedTeam) ||
-    normalizedTeam.includes(normalizedLabel)
-  )
-}
-
-const resolveQuoteSide = (game: EdgeGame, pick: EdgePick): "home" | "away" | "unknown" => {
-  const sideLabel = pick.projection?.side ?? pick.label ?? ""
-  if (labelMatchesTeam(sideLabel, game.homeTeam)) return "home"
-  if (labelMatchesTeam(sideLabel, game.awayTeam)) return "away"
-  return "unknown"
-}
-
-const resolveLineHistorySide = (
-  game: EdgeGame,
-  market: MarketFilter,
-  pick: EdgePick
-): "home" | "away" | "over" | "under" => {
-  if (market === "total") {
-    const token = normalizeToken(pick.projection?.side ?? pick.label ?? "")
-    if (token.includes("under")) return "under"
-    return "over"
-  }
-  const side = resolveQuoteSide(game, pick)
-  return side === "away" ? "away" : "home"
-}
-
-const resolveCurrentLimitSnapshot = (
-  game: EdgeGame,
-  market: MarketFilter,
-  pick: EdgePick,
-  pressureLabel?: string
-) => {
-  let forLimit = 0
-  let againstLimit = 0
-  let samples = 0
-
-  if (market === "spread") {
-    const side = resolveQuoteSide(game, pick)
-    const quotes = Object.values(game.spread?.bookQuotes ?? {})
-    for (const quote of quotes) {
-      const homeLimit = coerceNumber(quote?.homeLimit)
-      const awayLimit = coerceNumber(quote?.awayLimit)
-      if (homeLimit == null || awayLimit == null) continue
-      if (side === "home") {
-        forLimit += homeLimit
-        againstLimit += awayLimit
-      } else if (side === "away") {
-        forLimit += awayLimit
-        againstLimit += homeLimit
-      } else {
-        forLimit += Math.max(homeLimit, awayLimit)
-        againstLimit += Math.min(homeLimit, awayLimit)
-      }
-      samples += 1
-    }
-  } else if (market === "total") {
-    const sideToken = normalizeToken(pick.projection?.side ?? pick.label ?? "")
-    const quotes = Object.values(game.total?.bookQuotes ?? {})
-    for (const quote of quotes) {
-      const overLimit = coerceNumber(quote?.overLimit)
-      const underLimit = coerceNumber(quote?.underLimit)
-      if (overLimit == null || underLimit == null) continue
-      if (sideToken.includes("over")) {
-        forLimit += overLimit
-        againstLimit += underLimit
-      } else if (sideToken.includes("under")) {
-        forLimit += underLimit
-        againstLimit += overLimit
-      } else {
-        forLimit += Math.max(overLimit, underLimit)
-        againstLimit += Math.min(overLimit, underLimit)
-      }
-      samples += 1
-    }
-  } else {
-    const side = resolveQuoteSide(game, pick)
-    const quotes = Object.values(game.moneyline?.bookQuotes ?? {})
-    for (const quote of quotes) {
-      const homeLimit = coerceNumber(quote?.homeLimit)
-      const awayLimit = coerceNumber(quote?.awayLimit)
-      if (homeLimit == null || awayLimit == null) continue
-      if (side === "home") {
-        forLimit += homeLimit
-        againstLimit += awayLimit
-      } else if (side === "away") {
-        forLimit += awayLimit
-        againstLimit += homeLimit
-      } else {
-        forLimit += Math.max(homeLimit, awayLimit)
-        againstLimit += Math.min(homeLimit, awayLimit)
-      }
-      samples += 1
-    }
-  }
-
-  const score = coerceNumber(pick.projection?.limitPressureScore)
-  const label =
-    pressureLabel ??
-    pick.projection?.limitPressureLabel ??
-    (score != null ? resolveLimitPressureLabelFromScore(score) : null)
-
-  if (!samples && score == null) return null
-
-  return {
-    t: new Date().toISOString(),
-    score,
-    label: label ?? null,
-    forLimit: samples ? forLimit : null,
-    againstLimit: samples ? againstLimit : null,
-    netLimit: samples ? forLimit - againstLimit : null,
-  }
-}
-
-const resolveSpreadQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
-  game.spread?.bookQuotes?.[book]
-
-const resolveTotalQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
-  game.total?.bookQuotes?.[book]
-
-const resolveMoneylineQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
-  game.moneyline?.bookQuotes?.[book]
-
-const resolveBookLineValue = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick,
-  book: BookFilterKey
-) => {
-  if (filter === "spread") {
-    const quote = resolveSpreadQuoteForBook(game, book)
-    if (!quote) return null
-    const side = resolveQuoteSide(game, pick)
-    if (side === "home") return coerceNumber(quote.homeLine)
-    if (side === "away") return coerceNumber(quote.awayLine)
-    return coerceNumber(quote.homeLine ?? quote.awayLine ?? null)
-  }
-  if (filter === "total") {
-    return coerceNumber(resolveTotalQuoteForBook(game, book)?.line ?? null)
-  }
-  return null
-}
-
-const resolveBookOddsFromQuote = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick,
-  book: BookFilterKey
-) => {
-  if (filter === "spread") {
-    const quote = resolveSpreadQuoteForBook(game, book)
-    if (!quote) return null
-    const side = resolveQuoteSide(game, pick)
-    if (side === "home") return coerceNumber(quote.homeOdds)
-    if (side === "away") return coerceNumber(quote.awayOdds)
-    return coerceNumber(quote.homeOdds ?? quote.awayOdds ?? null)
-  }
-
-  if (filter === "total") {
-    const quote = resolveTotalQuoteForBook(game, book)
-    if (!quote) return null
-    const sideLabel = normalizeToken(pick.projection?.side ?? pick.label ?? "")
-    if (sideLabel.includes("over")) return coerceNumber(quote.overOdds)
-    if (sideLabel.includes("under")) return coerceNumber(quote.underOdds)
-    return coerceNumber(quote.overOdds ?? quote.underOdds ?? null)
-  }
-
-  const quote = resolveMoneylineQuoteForBook(game, book)
-  if (!quote) return null
-  const side = resolveQuoteSide(game, pick)
-  if (side === "home") return coerceNumber(quote.homeOdds)
-  if (side === "away") return coerceNumber(quote.awayOdds)
-  return coerceNumber(quote.homeOdds ?? quote.awayOdds ?? null)
-}
-
-const resolveSharpLineCandidates = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick
-) => {
-  const candidates: BookOddsCandidate[] = []
-  for (const bookOption of BOOK_OPTIONS) {
-    const quotedOdds = resolveBookOddsFromQuote(game, filter, pick, bookOption.key)
-    if (quotedOdds != null) {
-      candidates.push({ book: bookOption.key, odds: quotedOdds })
-    }
-  }
-  if (candidates.length > 0) return candidates
-
-  const sideLabel = pick.projection?.side ?? pick.label ?? ""
-  const normalizedSide = normalizeToken(sideLabel)
-  const homeSelected = labelMatchesTeam(sideLabel, game.homeTeam)
-  const awaySelected = labelMatchesTeam(sideLabel, game.awayTeam)
-
-  if (filter === "spread") {
-    if (homeSelected) {
-      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.homeOdds ?? null)
-      pushBookCandidate(candidates, game.spread?.bestHomeBook, game.spread?.bestHomeOdds ?? null)
-    } else if (awaySelected) {
-      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.awayOdds ?? null)
-      pushBookCandidate(candidates, game.spread?.bestAwayBook, game.spread?.bestAwayOdds ?? null)
-    } else {
-      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.homeOdds ?? null)
-      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.awayOdds ?? null)
-      pushBookCandidate(candidates, game.spread?.bestHomeBook, game.spread?.bestHomeOdds ?? null)
-      pushBookCandidate(candidates, game.spread?.bestAwayBook, game.spread?.bestAwayOdds ?? null)
-    }
-    pushBookCandidate(candidates, game.spread?.bestBook, game.spread?.bestOdds ?? null)
-    pushBookCandidate(candidates, game.spread?.prediction?.book, game.spread?.prediction?.odds ?? null)
-    return candidates
-  }
-
-  if (filter === "total") {
-    if (normalizedSide.includes("over")) {
-      pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.overOdds ?? null)
-      pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestOdds ?? null)
-      pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.overOdds ?? null)
-      return candidates
-    }
-    if (normalizedSide.includes("under")) {
-      pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.underOdds ?? null)
-      pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestUnderOdds ?? null)
-      pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.underOdds ?? null)
-      return candidates
-    }
-    pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.overOdds ?? null)
-    pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.underOdds ?? null)
-    pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestOdds ?? null)
-    pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestUnderOdds ?? null)
-    pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.overOdds ?? null)
-    pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.underOdds ?? null)
-    return candidates
-  }
-
-  if (homeSelected) {
-    pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.homeOdds ?? null)
-    pushBookCandidate(
-      candidates,
-      game.moneyline?.sportsbook?.homeBook,
-      game.moneyline?.sportsbook?.homeOdds ?? null
-    )
-    pushBookCandidate(
-      candidates,
-      game.moneyline?.prediction?.homeBook,
-      game.moneyline?.prediction?.homeOdds ?? null
-    )
-    return candidates
-  }
-  if (awaySelected) {
-    pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.awayOdds ?? null)
-    pushBookCandidate(
-      candidates,
-      game.moneyline?.sportsbook?.awayBook,
-      game.moneyline?.sportsbook?.awayOdds ?? null
-    )
-    pushBookCandidate(
-      candidates,
-      game.moneyline?.prediction?.awayBook,
-      game.moneyline?.prediction?.awayOdds ?? null
-    )
-    return candidates
-  }
-  pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.homeOdds ?? null)
-  pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.awayOdds ?? null)
-  pushBookCandidate(
-    candidates,
-    game.moneyline?.sportsbook?.homeBook,
-    game.moneyline?.sportsbook?.homeOdds ?? null
-  )
-  pushBookCandidate(
-    candidates,
-    game.moneyline?.sportsbook?.awayBook,
-    game.moneyline?.sportsbook?.awayOdds ?? null
-  )
-  pushBookCandidate(
-    candidates,
-    game.moneyline?.prediction?.homeBook,
-    game.moneyline?.prediction?.homeOdds ?? null
-  )
-  pushBookCandidate(
-    candidates,
-    game.moneyline?.prediction?.awayBook,
-    game.moneyline?.prediction?.awayOdds ?? null
-  )
-  return candidates
-}
-
-const resolveBookLineForGame = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick,
-  selectedBook: BookFilterKey
-) => {
-  const candidates = resolveSharpLineCandidates(game, filter, pick).filter(
-    (candidate) => candidate.book === selectedBook
-  )
-  return pickBestBookOdds(candidates)
-}
-
-const resolveSharpLineDisplay = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick,
-  selectedBook: BookFilterKey
-) => {
-  const line = resolveBookLineForGame(game, filter, pick, selectedBook)
-  return line == null ? "n/a" : formatOdds(line.odds)
-}
-
-const resolveSpreadComparison = (game: EdgeGame) => {
-  const marketLine = resolveMarketSpreadLine(game)
-  const projectedLine = resolveModelSpread(game)
-  if (marketLine == null || projectedLine == null) return null
-  const delta = Math.abs(projectedLine - marketLine)
-  return {
-    marketLine,
-    projectedLine,
-    delta,
-    marketLabel: formatSpreadLineLabel(game, marketLine),
-    projectedLabel: formatSpreadLineLabel(game, projectedLine),
-  }
-}
-
-const resolveTotalComparison = (game: EdgeGame) => {
-  const marketLine =
-    coerceNumber(game.total?.marketLine) ?? resolveLineFromMovements(game, "total")
-  const predictionLine = coerceNumber(game.total?.prediction?.line)
-  const targetLine = coerceNumber(game.total?.targetLine)
-  let projectedLine = targetLine ?? predictionLine
-
-  if (predictionLine != null && marketLine != null) {
-    if (Math.abs(predictionLine - marketLine) > 1) {
-      projectedLine = predictionLine
-    }
-  }
-
-  if (marketLine == null || projectedLine == null) return null
-  const delta = Math.abs(projectedLine - marketLine)
-  return {
-    marketLine,
-    projectedLine,
-    delta,
-    marketLabel: marketLine.toFixed(1),
-    projectedLabel: projectedLine.toFixed(1),
-  }
-}
-
-const resolveMoneylineComparison = (game: EdgeGame, pick: EdgePick) => {
-  const label = pick.label ?? pick.projection?.side
-  if (!label) return null
-  const isHome = label.includes(game.homeTeam)
-  const isAway = label.includes(game.awayTeam)
-  if (!isHome && !isAway) return null
-
-  const marketOdds = isHome
-    ? game.moneyline?.sportsbook?.homeOdds
-    : game.moneyline?.sportsbook?.awayOdds
-  const projectedOdds = isHome
-    ? game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds
-    : game.moneyline?.model?.awayOdds ?? game.moneyline?.prediction?.awayOdds
-  const marketProb = impliedProbability(marketOdds)
-  const projectedProb = impliedProbability(projectedOdds)
-
-  if (marketOdds == null || projectedOdds == null || marketProb == null || projectedProb == null) {
-    return null
-  }
-
-  const delta = Math.abs(projectedProb - marketProb) * 100
-  return {
-    marketOdds,
-    projectedOdds,
-    marketProb,
-    projectedProb,
-    delta,
-    sideLabel: label,
-  }
-}
-
-const toPercent = (value: number, min: number, max: number) => {
-  const denom = max - min
-  if (!denom) return 50
-  return Math.max(0, Math.min(100, ((value - min) / denom) * 100))
-}
-
-const SpreadComparison = ({ game }: { game: EdgeGame }) => {
-  const comparison = resolveSpreadComparison(game)
-  if (!comparison) return null
-  const { marketLine, projectedLine, delta, marketLabel, projectedLabel } = comparison
-  const min = Math.min(marketLine, projectedLine)
-  const max = Math.max(marketLine, projectedLine)
-  const pad = Math.max(1, (max - min) * 0.6)
-  const minPad = min - pad
-  const maxPad = max + pad
-  const marketPos = toPercent(marketLine, minPad, maxPad)
-  const projectedPos = toPercent(projectedLine, minPad, maxPad)
-
-  return (
-    <div className="space-y-2 text-xs text-white/70">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-        <span>Market</span>
-        <span>Projected</span>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-          {marketLabel}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-          Δ {delta.toFixed(1)}
-        </span>
-        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-          {projectedLabel}
-        </span>
-      </div>
-      <div className="relative h-2 w-full rounded-full bg-white/10">
-        <div className="absolute top-1/2 h-[2px] w-full -translate-y-1/2 bg-white/15" />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.4)]"
-          style={{ left: `${marketPos}%` }}
-        />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
-          style={{ left: `${projectedPos}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-const TotalComparison = ({ game }: { game: EdgeGame }) => {
-  const comparison = resolveTotalComparison(game)
-  if (!comparison) return null
-  const { marketLine, projectedLine, delta, marketLabel, projectedLabel } = comparison
-  const min = Math.min(marketLine, projectedLine)
-  const max = Math.max(marketLine, projectedLine)
-  const pad = Math.max(1, (max - min) * 0.6)
-  const minPad = min - pad
-  const maxPad = max + pad
-  const marketPos = toPercent(marketLine, minPad, maxPad)
-  const projectedPos = toPercent(projectedLine, minPad, maxPad)
-
-  return (
-    <div className="space-y-2 text-xs text-white/70">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-        <span>Market</span>
-        <span>Projected</span>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-          {marketLabel}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-          Î” {delta.toFixed(1)}
-        </span>
-        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-          {projectedLabel}
-        </span>
-      </div>
-      <div className="relative h-2 w-full rounded-full bg-white/10">
-        <div className="absolute top-1/2 h-[2px] w-full -translate-y-1/2 bg-white/15" />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.4)]"
-          style={{ left: `${marketPos}%` }}
-        />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
-          style={{ left: `${projectedPos}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-const MoneylineComparison = ({
-  game,
-  pick,
-}: {
-  game: EdgeGame
-  pick: EdgePick
-}) => {
-  const comparison = resolveMoneylineComparison(game, pick)
-  if (!comparison) return null
-  const { marketOdds, projectedOdds, marketProb, projectedProb, delta, sideLabel } =
-    comparison
-  const min = Math.min(marketProb, projectedProb)
-  const max = Math.max(marketProb, projectedProb)
-  const pad = Math.max(0.02, (max - min) * 0.6)
-  const minPad = Math.max(0, min - pad)
-  const maxPad = Math.min(1, max + pad)
-  const marketPos = toPercent(marketProb, minPad, maxPad)
-  const projectedPos = toPercent(projectedProb, minPad, maxPad)
-
-  return (
-    <div className="space-y-2 text-xs text-white/70">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-        <span>Market</span>
-        <span>Projected</span>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-          {sideLabel} {formatOdds(marketOdds)} ({formatProbability(marketProb)})
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-          Î” {delta.toFixed(1)}%
-        </span>
-        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-          {sideLabel} {formatOdds(projectedOdds)} ({formatProbability(projectedProb)})
-        </span>
-      </div>
-      <div className="relative h-2 w-full rounded-full bg-white/10">
-        <div className="absolute top-1/2 h-[2px] w-full -translate-y-1/2 bg-white/15" />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.4)]"
-          style={{ left: `${marketPos}%` }}
-        />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
-          style={{ left: `${projectedPos}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-const formatPick = (pick: EdgePick) => {
-  if (pick.projection) return formatProjectionPick(pick.label, pick.projection)
-  return formatEdgePick(pick.label, pick.edgePercent)
-}
-
-const formatPickBrief = (pick: EdgePick) => {
-  if (pick.projection) {
-    if (!pick.label) return formatProbability(pick.projection.probability)
-    return `${pick.label} ${formatProbability(pick.projection.probability)}`
-  }
-  return formatEdgePick(pick.label, pick.edgePercent)
-}
-
-const marketEdgeFallback = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  sport?: string
-): MarketEdge => {
-  const projection = resolveProjection(game, filter)
-  if (projection) return { edgePercent: projection.edgePercent }
-  const scale = sport === "basketball_ncaab" ? 0.5 : 1
-  if (filter === "spread") {
-    const modelLine = resolveModelSpread(game)
-    const marketLine = coerceNumber(game.spread?.marketLine)
-    const fallbackMarketLine = resolveLineFromMovements(game, "spread")
-    const resolvedMarketLine = marketLine ?? fallbackMarketLine
-    if (modelLine == null || resolvedMarketLine == null) {
-      return { edgePercent: 0 }
-    }
-    const diff = Math.abs(modelLine - resolvedMarketLine)
-    const edge = diff * 3 - resolveEdgeVig(sport)
-    return { edgePercent: clampPercent(edge * scale) }
-  }
-
-  if (filter === "total") {
-    const marketLine = coerceNumber(game.total?.marketLine)
-    const predictionLine = coerceNumber(game.total?.prediction?.line)
-    const targetLine = coerceNumber(game.total?.targetLine)
-    const fallbackMarketLine = resolveLineFromMovements(game, "total")
-
-    // Prefer prediction line if it differs from market
-    let modelLine = targetLine
-    const resolvedMarketLine = marketLine ?? fallbackMarketLine
-    if (predictionLine != null && resolvedMarketLine != null) {
-      if (Math.abs(predictionLine - resolvedMarketLine) > 1) {
-        modelLine = predictionLine
-      }
-    }
-
-    if (modelLine == null || resolvedMarketLine == null) {
-      return { edgePercent: 0 }
-    }
-    const diff = Math.abs(modelLine - resolvedMarketLine)
-    const vig = resolveEdgeVig(
-      sport,
-      game.total?.bestOdds ?? null,
-      game.total?.bestUnderOdds ?? null
-    )
-    const edge = diff * 1.8 - vig
-    return { edgePercent: clampPercent(edge * scale) }
-  }
-
-  const modelHomeProb = impliedProbability(
-    game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds
-  )
-  const marketHomeProb = impliedProbability(game.moneyline?.sportsbook?.homeOdds)
-  const modelAwayProb = impliedProbability(
-    game.moneyline?.model?.awayOdds ?? game.moneyline?.prediction?.awayOdds
-  )
-  const marketAwayProb = impliedProbability(game.moneyline?.sportsbook?.awayOdds)
-  const homeEdge =
-    modelHomeProb != null && marketHomeProb != null
-      ? Math.abs((modelHomeProb - marketHomeProb) * 100)
-      : 0
-  const awayEdge =
-    modelAwayProb != null && marketAwayProb != null
-      ? Math.abs((modelAwayProb - marketAwayProb) * 100)
-      : 0
-  const vig = resolveEdgeVig(
-    sport,
-    game.moneyline?.sportsbook?.homeOdds ?? null,
-    game.moneyline?.sportsbook?.awayOdds ?? null
-  )
-  const edge = Math.max(homeEdge, awayEdge) - vig
-  return { edgePercent: clampPercent(edge * scale) }
-}
-
-const resolveActiveMarketFilter = (
-  filter: EdgeFilter,
-  pick?: EdgePick | null
-): MarketFilter => {
-  if (filter !== "all") return filter
-  return pick?.marketKey ?? "spread"
-}
-
-const resolveEdgeForPick = ({
-  game,
-  market,
-  pick,
-  sport,
-  selectedBook,
-}: {
-  game: EdgeGame
-  market: MarketFilter
-  pick: EdgePick
-  sport?: string
-  selectedBook: BookFilterKey
-}) => {
-  if (pick.projection) {
-    const bookOdds = resolveBookOddsFromQuote(game, market, pick, selectedBook)
-    const bookBreakEven = impliedProbability(bookOdds)
-    if (bookBreakEven != null) {
-      return clampPercent((pick.projection.probability - bookBreakEven) * 100)
-    }
-    const projectionBreakEven = coerceNumber(pick.projection.breakEven)
-    if (projectionBreakEven != null) {
-      return clampPercent((pick.projection.probability - projectionBreakEven) * 100)
-    }
-    return clampPercent(pick.projection.edgePercent)
-  }
-  return marketEdgeFallback(game, market, sport).edgePercent
-}
-
-const resolveEdgeVsBook = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  sport: string | undefined,
-  selectedBook: BookFilterKey
-): MarketEdge => {
-  const activePick = resolveActivePickForFilter(game, filter, sport, selectedBook)
-  const market = resolveActiveMarketFilter(filter, activePick)
-  return {
-    edgePercent: resolveEdgeForPick({
-      game,
-      market,
-      pick: activePick,
-      sport,
-      selectedBook,
-    }),
-  }
-}
-
-const resolveLimitPressureFromQuotes = (
-  game: EdgeGame,
-  market: MarketFilter,
-  pick: EdgePick
-) => {
-  const sideToken = normalizeToken(pick.projection?.side ?? pick.label ?? "")
-  const side = resolveQuoteSide(game, pick)
-  const deltas: number[] = []
-
-  if (market === "spread") {
-    const quotes = Object.values(game.spread?.bookQuotes ?? {})
-    for (const quote of quotes) {
-      const forLimit =
-        side === "home"
-          ? coerceNumber(quote?.homeLimit)
-          : side === "away"
-            ? coerceNumber(quote?.awayLimit)
-            : coerceNumber(quote?.homeLimit ?? quote?.awayLimit)
-      const againstLimit =
-        side === "home"
-          ? coerceNumber(quote?.awayLimit)
-          : side === "away"
-            ? coerceNumber(quote?.homeLimit)
-            : null
-      if (forLimit == null || againstLimit == null) continue
-      const total = forLimit + againstLimit
-      if (!total) continue
-      deltas.push((forLimit - againstLimit) / total)
-    }
-  } else if (market === "total") {
-    const quotes = Object.values(game.total?.bookQuotes ?? {})
-    const isOver = sideToken.includes("over")
-    const isUnder = sideToken.includes("under")
-    for (const quote of quotes) {
-      const overLimit = coerceNumber(quote?.overLimit)
-      const underLimit = coerceNumber(quote?.underLimit)
-      if (overLimit == null || underLimit == null) continue
-      const forLimit = isOver ? overLimit : isUnder ? underLimit : Math.max(overLimit, underLimit)
-      const againstLimit = isOver ? underLimit : isUnder ? overLimit : Math.min(overLimit, underLimit)
-      const total = forLimit + againstLimit
-      if (!total) continue
-      deltas.push((forLimit - againstLimit) / total)
-    }
-  } else {
-    const quotes = Object.values(game.moneyline?.bookQuotes ?? {})
-    for (const quote of quotes) {
-      const forLimit =
-        side === "home"
-          ? coerceNumber(quote?.homeLimit)
-          : side === "away"
-            ? coerceNumber(quote?.awayLimit)
-            : coerceNumber(quote?.homeLimit ?? quote?.awayLimit)
-      const againstLimit =
-        side === "home"
-          ? coerceNumber(quote?.awayLimit)
-          : side === "away"
-            ? coerceNumber(quote?.homeLimit)
-            : null
-      if (forLimit == null || againstLimit == null) continue
-      const total = forLimit + againstLimit
-      if (!total) continue
-      deltas.push((forLimit - againstLimit) / total)
-    }
-  }
-
-  if (!deltas.length) return "Balanced limits"
-  const avgDelta = deltas.reduce((sum, value) => sum + value, 0) / deltas.length
-  if (avgDelta <= -0.2) return "Strong contraction"
-  if (avgDelta <= -0.08) return "Moderate contraction"
-  if (avgDelta >= 0.2) return "Strong expansion"
-  if (avgDelta >= 0.08) return "Moderate expansion"
-  return "Balanced limits"
-}
-
-const resolveLimitPressureLabelFromScore = (score: number) => {
-  if (score >= 0.05) return "Strong contraction"
-  if (score >= 0.015) return "Moderate contraction"
-  if (score <= -0.05) return "Strong expansion"
-  if (score <= -0.015) return "Moderate expansion"
-  return "Balanced limits"
-}
-
-const resolveLimitPressureDisplay = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick
-) => {
-  const projectionLabel = pick.projection?.limitPressureLabel
-  if (projectionLabel) return projectionLabel
-  const projectionScore = coerceNumber(pick.projection?.limitPressureScore)
-  if (projectionScore != null) {
-    return resolveLimitPressureLabelFromScore(projectionScore)
-  }
-  const market = resolveActiveMarketFilter(filter, pick)
-  return resolveLimitPressureFromQuotes(game, market, pick)
-}
-
-const resolveBetLabel = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  pick: EdgePick,
-  selectedBook: BookFilterKey
-) => {
-  const market = resolveActiveMarketFilter(filter, pick)
-
-  if (market === "moneyline") {
-    const side = pick.projection?.side ?? pick.label
-    return side ? `${side} ML` : "n/a"
-  }
-
-  if (market === "spread") {
-    const side = pick.projection?.side ?? pick.label
-    if (!side) return "n/a"
-    const lineValue = resolveBookLineValue(game, market, pick, selectedBook)
-    if (lineValue == null) return side
-    const lineLabel = lineValue === 0 ? "PK" : formatSigned(lineValue)
-    return `${side} ${lineLabel}`
-  }
-
-  const side = pick.projection?.side ?? pick.label
-  if (!side) return "n/a"
-  const lineValue = resolveBookLineValue(game, market, pick, selectedBook)
-  if (lineValue == null) return side
-  return `${side} ${lineValue.toFixed(1)}`
-}
-
-const edgeLabel = (edgePercent: number) => `${edgePercent.toFixed(1)}%`
-
-const resolveElectricPreset = (edgePercent: number) => {
-  if (edgePercent >= 20) {
-    return {
-      color: "#39ff88",
-      className: "ec-intensity-strong",
-      badge: "Elite Edge",
-    }
-  }
-  if (edgePercent >= 15) {
-    return {
-      color: "#24e07c",
-      className: "ec-intensity-medium",
-      badge: "High Edge",
-    }
-  }
-  if (edgePercent >= 10) {
-    return {
-      color: "#16b865",
-      className: "ec-intensity-low",
-      badge: "Edge",
-    }
-  }
-  return null
-}
-const formatEdgePick = (
-  label: string | null,
-  edgePercent: number | null
-) => {
-  if (!label || edgePercent == null) return "0.0%"
-  return `${label} ${edgeLabel(edgePercent)}`
-}
-
-const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
-  const projection = resolveProjection(game, "spread")
-  if (projection) {
-    return {
-      label: resolveSpreadProjectionLabel(game, projection),
-      edgePercent: projection.edgePercent,
-      projection,
-      marketKey: "spread" as const,
-    }
-  }
-  const modelLine = resolveModelSpread(game)
-  const marketLine = coerceNumber(game.spread?.marketLine)
-  const fallbackMarketLine = resolveLineFromMovements(game, "spread")
-  const resolvedMarketLine = marketLine ?? fallbackMarketLine
-  if (modelLine == null || resolvedMarketLine == null) {
-    return { label: null, edgePercent: null }
-  }
-  const pick = modelLine < resolvedMarketLine
-    ? game.homeTeam
-    : game.awayTeam
-  const edgePercent = marketEdgeFallback(game, "spread", sport).edgePercent
-  return { label: pick, edgePercent, marketKey: "spread" as const }
-}
-
-const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
-  const projection = resolveProjection(game, "total")
-  if (projection) {
-    return {
-      label: resolveTotalProjectionLabel(game, projection),
-      edgePercent: projection.edgePercent,
-      projection,
-      marketKey: "total" as const,
-    }
-  }
-  const marketLine = coerceNumber(game.total?.marketLine)
-  const predictionLine = coerceNumber(game.total?.prediction?.line)
-  const targetLine = coerceNumber(game.total?.targetLine)
-  const fallbackMarketLine = resolveLineFromMovements(game, "total")
-
-  // Prefer prediction line if it differs from market
-  let modelLine = targetLine
-  const resolvedMarketLine = marketLine ?? fallbackMarketLine
-  if (predictionLine != null && resolvedMarketLine != null) {
-    if (Math.abs(predictionLine - resolvedMarketLine) > 1) {
-      modelLine = predictionLine
-    }
-  }
-
-  if (modelLine == null || resolvedMarketLine == null) {
-    return { label: null, edgePercent: null }
-  }
-  const pick = modelLine > resolvedMarketLine ? "Over" : "Under"
-  const edgePercent = marketEdgeFallback(game, "total", sport).edgePercent
-  return { label: pick, edgePercent, marketKey: "total" as const }
-}
-
-const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
-  const projection = resolveProjection(game, "moneyline")
-  if (projection) {
-    return {
-      label: projection.side,
-      edgePercent: projection.edgePercent,
-      projection,
-      marketKey: "moneyline" as const,
-    }
-  }
-  const modelHomeProb = impliedProbability(
-    game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds     
-  )
-  const marketHomeProb = impliedProbability(
-    game.moneyline?.sportsbook?.homeOdds
-  )
-  const modelAwayProb = impliedProbability(
-    game.moneyline?.model?.awayOdds ?? game.moneyline?.prediction?.awayOdds
-  )
-  const marketAwayProb = impliedProbability(
-    game.moneyline?.sportsbook?.awayOdds
-  )
+const normalizeMarket = (market?: string | null): MarketKey | null => {
+  const token = String(market ?? "").toLowerCase()
+  if (!token) return null
+  if (token.includes("spread")) return "spread"
+  if (token.includes("total") || token.includes("ou")) return "total"
   if (
-    modelHomeProb == null ||
-    marketHomeProb == null ||
-    modelAwayProb == null ||
-    marketAwayProb == null
+    token.includes("moneyline") ||
+    token.includes("h2h") ||
+    token.includes("ml")
   ) {
-    return { label: null, edgePercent: null }
+    return "moneyline"
   }
-  const homeDiff = modelHomeProb - marketHomeProb
-  const awayDiff = modelAwayProb - marketAwayProb
-  const pick = homeDiff >= awayDiff ? game.homeTeam : game.awayTeam
-  const edgePercent = marketEdgeFallback(game, "moneyline", sport).edgePercent
-  return { label: pick, edgePercent, marketKey: "moneyline" as const }
+  return null
 }
 
-const resolveFilterLabels = (filter: EdgeFilter) => {
-  if (filter === "all") return { projection: "All markets", odds: "Book Price" }
-  if (filter === "spread") return { projection: "Spread bets", odds: "Book Price" }
-  if (filter === "moneyline") return { projection: "Moneyline bets", odds: "Book Price" }
-  return { projection: "Total bets", odds: "Book Price" }
+const pickSharpQuote = <T,>(quotes?: Record<string, T>) => {
+  if (!quotes || typeof quotes !== "object") return null
+  for (const book of SHARP_BOOK_PRIORITY) {
+    const quote = quotes[book]
+    if (quote && typeof quote === "object") return quote
+  }
+  return null
 }
 
-const buildProjectionSharePayload = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  sportKey: string | undefined,
-  activePick: EdgePick,
-  edgePercent: number,
-  selectedBook: BookFilterKey
-) => {
-  const activeMarket = resolveActiveMarketFilter(filter, activePick)
-  const filterLabels = resolveFilterLabels(activeMarket)
-  const oddsLabel = resolveSharpLineDisplay(game, activeMarket, activePick, selectedBook)
-  const sharpFairLabel = activePick.projection
-    ? formatProbability(activePick.projection.probability)
-    : "n/a"
-  const betLabel = resolveBetLabel(game, filter, activePick, selectedBook)
-  const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
-  const selectedBookLabel = BOOK_OPTIONS_BY_KEY[selectedBook]?.label ?? selectedBook
+const resolveMovement = (movements: LineMovement[] | undefined, market: MarketKey) => {
+  if (!Array.isArray(movements) || !movements.length) {
+    return {
+      openingText: "n/a",
+      currentText: "n/a",
+      delta: null as number | null,
+      isSharp: false,
+      isSignificant: false,
+      magnitude: 0,
+    }
+  }
+
+  const candidates = movements.filter((move) => normalizeMarket(move.market) === market)
+  if (!candidates.length) {
+    return {
+      openingText: "n/a",
+      currentText: "n/a",
+      delta: null as number | null,
+      isSharp: false,
+      isSignificant: false,
+      magnitude: 0,
+    }
+  }
+
+  const picked = candidates.find((move) => move.isSharp || move.isSignificant) ?? candidates[0]
+  const openingNumeric = coerceNumber(picked.openingLine)
+  const currentNumeric = coerceNumber(picked.currentLine)
+  const delta =
+    openingNumeric != null && currentNumeric != null
+      ? currentNumeric - openingNumeric
+      : null
+
+  let magnitude = 0
+  if (market === "moneyline") {
+    const openProb = americanToImplied(openingNumeric)
+    const currentProb = americanToImplied(currentNumeric)
+    magnitude =
+      openProb != null && currentProb != null ? Math.abs(currentProb - openProb) * 100 : 0
+  } else {
+    magnitude = delta != null ? Math.abs(delta) : 0
+  }
 
   return {
-    id: `${game.matchup}-${activeMarket}-${selectedBook}`,
-    sportLabel: resolveSportLabel(sportKey),
-    matchup: game.matchup,
-    marketLabel: filterLabels.projection,
-    betLabel,
-    edgeLabel: edgeLabel(edgePercent),
-    sharpFairLabel,
-    bookPriceLabel: oddsLabel,
-    selectedBookLabel,
-    limitPressureLabel: limitPressure || "Balanced limits",
+    openingText: String(picked.openingLine ?? "n/a"),
+    currentText: String(picked.currentLine ?? "n/a"),
+    delta,
+    isSharp: Boolean(picked.isSharp),
+    isSignificant: Boolean(picked.isSignificant),
+    magnitude,
   }
 }
 
-const hasMarketData = (game: EdgeGame, filter: EdgeFilter): boolean => {
-  if (filter === "all") {
-    return (
-      hasMarketData(game, "spread") ||
-      hasMarketData(game, "moneyline") ||
-      hasMarketData(game, "total")
-    )
-  }
-  if (filter === "spread") {
-    return (
-      (coerceNumber(game.spread?.marketLine) != null ||
-        resolveLineFromMovements(game, "spread") != null) &&
-      (coerceNumber(game.spread?.targetLine) != null ||
-        resolveModelSpread(game) != null)
-    )
-  }
-  if (filter === "total") {
-    return (
-      (coerceNumber(game.total?.marketLine) != null ||
-        resolveLineFromMovements(game, "total") != null) &&
-      (coerceNumber(game.total?.targetLine) != null ||
-        coerceNumber(game.total?.prediction?.line) != null)
-    )
-  }
-  return Boolean(
-    game.moneyline?.sportsbook?.homeOdds ??
-      game.moneyline?.sportsbook?.awayOdds ??
-      game.moneyline?.prediction?.homeOdds ??
-      game.moneyline?.prediction?.awayOdds ??
-      game.moneyline?.model?.homeOdds ??
-      game.moneyline?.model?.awayOdds ??
-      game.sharpProjections?.moneyline
+const resolveLimitMetrics = (limits: Array<number | null>) => {
+  const valid = limits.filter((value): value is number =>
+    value != null && Number.isFinite(value) && value > 0
   )
+
+  if (!valid.length) {
+    return {
+      maxLimit: null as number | null,
+      expansion: null as number | null,
+      label: "No limit data",
+      score: 0,
+    }
+  }
+
+  const maxLimit = Math.max(...valid)
+  const minLimit = Math.min(...valid)
+  const expansion = maxLimit - minLimit
+
+  let label = "Balanced"
+  if (expansion >= 10000) label = "Strong expansion"
+  else if (expansion >= 4000) label = "Expansion"
+  else if (expansion >= 1500) label = "Light expansion"
+
+  const score = expansion / 1000 + maxLimit / 10000
+
+  return {
+    maxLimit,
+    expansion,
+    label,
+    score,
+  }
 }
+
+const resolvePinnacleMarketDisplay = (game: EdgeGame, market: MarketKey) => {
+  if (market === "spread") {
+    const quote = pickSharpQuote(game.spread?.bookQuotes)
+    const homeLine = coerceNumber((quote as BookSpreadQuote | null)?.homeLine)
+    const awayLine = coerceNumber((quote as BookSpreadQuote | null)?.awayLine)
+    const homeOdds = coerceNumber((quote as BookSpreadQuote | null)?.homeOdds)
+    const awayOdds = coerceNumber((quote as BookSpreadQuote | null)?.awayOdds)
+    const homeLimit = coerceNumber((quote as BookSpreadQuote | null)?.homeLimit)
+    const awayLimit = coerceNumber((quote as BookSpreadQuote | null)?.awayLimit)
+
+    return {
+      line: `H ${formatSignedNumber(homeLine)} / A ${formatSignedNumber(awayLine)}`,
+      odds: `H ${formatOdds(homeOdds)} / A ${formatOdds(awayOdds)}`,
+      limits: [homeLimit, awayLimit],
+    }
+  }
+
+  if (market === "total") {
+    const quote = pickSharpQuote(game.total?.bookQuotes)
+    const line = coerceNumber((quote as BookTotalQuote | null)?.line)
+    const overOdds = coerceNumber((quote as BookTotalQuote | null)?.overOdds)
+    const underOdds = coerceNumber((quote as BookTotalQuote | null)?.underOdds)
+    const overLimit = coerceNumber((quote as BookTotalQuote | null)?.overLimit)
+    const underLimit = coerceNumber((quote as BookTotalQuote | null)?.underLimit)
+
+    return {
+      line: `O/U ${line != null ? line.toFixed(1) : "n/a"}`,
+      odds: `O ${formatOdds(overOdds)} / U ${formatOdds(underOdds)}`,
+      limits: [overLimit, underLimit],
+    }
+  }
+
+  const quote = pickSharpQuote(game.moneyline?.bookQuotes)
+  const homeOdds = coerceNumber((quote as BookMoneylineQuote | null)?.homeOdds)
+  const awayOdds = coerceNumber((quote as BookMoneylineQuote | null)?.awayOdds)
+  const homeLimit = coerceNumber((quote as BookMoneylineQuote | null)?.homeLimit)
+  const awayLimit = coerceNumber((quote as BookMoneylineQuote | null)?.awayLimit)
+
+  return {
+    line: "Moneyline",
+    odds: `H ${formatOdds(homeOdds)} / A ${formatOdds(awayOdds)}`,
+    limits: [homeLimit, awayLimit],
+  }
+}
+
+const buildRows = (edges: EdgeGame[]): MovementRow[] => {
+  const rows: MovementRow[] = []
+
+  for (const game of edges) {
+    const homeTeam = String(game.homeTeam ?? "").trim()
+    const awayTeam = String(game.awayTeam ?? "").trim()
+    if (!homeTeam || !awayTeam) continue
+
+    const matchup = game.matchup || `${awayTeam} @ ${homeTeam}`
+    const sport = String(game.sport ?? "")
+    const commenceTime =
+      typeof game.commenceTime === "string"
+        ? game.commenceTime
+        : typeof game.commence_time === "string"
+          ? game.commence_time
+          : null
+
+    const markets: MarketKey[] = ["spread", "moneyline", "total"]
+
+    for (const market of markets) {
+      const movement = resolveMovement(game.lineMovements, market)
+      const pinnacle = resolvePinnacleMarketDisplay(game, market)
+      const limits = resolveLimitMetrics(pinnacle.limits)
+
+      const movementScore = movement.magnitude * 8
+      const flagScore = (movement.isSharp ? 2 : 0) + (movement.isSignificant ? 1 : 0)
+      const score = movementScore + limits.score + flagScore
+
+      rows.push({
+        id: `${game.oddsApiId ?? matchup}|${market}`,
+        oddsApiId: game.oddsApiId,
+        sport,
+        homeTeam,
+        awayTeam,
+        matchup,
+        commenceTime,
+        market,
+        marketLabel: MARKET_LABELS[market],
+        pinnacleLine: pinnacle.line,
+        pinnacleOdds: pinnacle.odds,
+        movementLabel: `${movement.openingText} -> ${movement.currentText}`,
+        movementDelta: movement.delta,
+        movementMagnitude: movement.magnitude,
+        isSharpMove: movement.isSharp,
+        isSignificantMove: movement.isSignificant,
+        limitLabel: limits.label,
+        limitExpansion: limits.expansion,
+        maxLimit: limits.maxLimit,
+        score,
+      })
+    }
+  }
+
+  return rows
+}
+
+const resolveDefaultSide = (market: MarketKey) =>
+  market === "total" ? "over" : "home"
 
 export default function MarketProjectionsTable({
   edges,
@@ -1649,1044 +442,1008 @@ export default function MarketProjectionsTable({
   previewMode = false,
 }: {
   edges: EdgeGame[]
-  errorMessage: string | null
-  sport?: string
+  errorMessage?: string | null
+  sport: string
   tier?: AccessTier
   previewMode?: boolean
 }) {
-  const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
-  const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "all")
-  const [leagueFilter, setLeagueFilter] = useState<string>("all")
-  const [matchFilter, setMatchFilter] = useState<string>("all")
-  const [dateFilter, setDateFilter] = useState<DateWindowFilter>("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedBook, setSelectedBook] = useState<BookFilterKey>(DEFAULT_BOOK_FILTER)
-  const [showBookPicker, setShowBookPicker] = useState(false)
-  const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null)
+  const [filter, setFilter] = useState<EdgeFilter>("all")
+  const [historyRow, setHistoryRow] = useState<MovementRow | null>(null)
+  const [historyPoints, setHistoryPoints] = useState<LimitHistoryPoint[]>([])
+  const [historyLineSeries, setHistoryLineSeries] = useState<HistoryLinePoint[]>([])
+  const [historyOddsSeries, setHistoryOddsSeries] = useState<HistoryOddsPoint[]>([])
+  const [historyHourlySeries, setHistoryHourlySeries] = useState<HourlyMovementPoint[]>([])
+  const [historyPriceLevels, setHistoryPriceLevels] = useState<PriceLevelRow[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
-  const [lineHistoryPoints, setLineHistoryPoints] = useState<LineHistoryPoint[]>([])
-  const [lineHistoryBook, setLineHistoryBook] = useState<string | null>(null)
-  const [limitHistoryPoints, setLimitHistoryPoints] = useState<LimitHistoryPoint[]>([])
-  const activeBookOption = BOOK_OPTIONS_BY_KEY[selectedBook]
 
-  useEffect(() => {
-    if (!accessConfig.allowedFilters.includes(filter)) {
-      setFilter(accessConfig.allowedFilters[0] ?? "all")
-    }
-  }, [accessConfig.allowedFilters, filter])
+  const rows = useMemo(() => {
+    const mappedRows = buildRows(edges)
+      .filter((row) => (sport === "all" ? true : row.sport === sport))
+      .filter((row) => (filter === "all" ? true : row.market === filter))
+      .sort((a, b) => b.score - a.score)
 
-  useEffect(() => {
-    setMatchFilter("all")
-    setLeagueFilter("all")
-    setSearchQuery("")
-  }, [sport])
+    if (!previewMode) return mappedRows
+    return mappedRows.slice(0, 12)
+  }, [edges, sport, filter, previewMode])
 
-  const sortedEdges = useMemo(() => {
-    const scoped = edges.filter(
-      (game) =>
-        hasMarketData(game, filter) &&
-        isUpcomingGame(game.commenceTime)
+  const maxMovementMagnitude = useMemo(() => {
+    if (!rows.length) return 1
+    return Math.max(
+      1,
+      ...rows.map((row) =>
+        Number.isFinite(row.movementMagnitude) ? Math.abs(row.movementMagnitude) : 0
+      )
     )
-    const sorted = [...scoped].sort(
-      (a, b) =>
-        resolveEdgeVsBook(
-          b,
-          filter,
-          resolveGameSportKey(b, sport),
-          selectedBook
-        ).edgePercent -
-        resolveEdgeVsBook(
-          a,
-          filter,
-          resolveGameSportKey(a, sport),
-          selectedBook
-        ).edgePercent
+  }, [rows])
+
+  const maxLimitExpansion = useMemo(() => {
+    if (!rows.length) return 1
+    return Math.max(
+      1,
+      ...rows.map((row) =>
+        row.limitExpansion != null && Number.isFinite(row.limitExpansion)
+          ? Math.abs(row.limitExpansion)
+          : 0
+      )
     )
-    const maxRows = accessConfig.maxRows[filter]
-    return Number.isFinite(maxRows) ? sorted.slice(0, maxRows) : sorted
-  }, [edges, filter, sport, accessConfig.maxRows, selectedBook])
-  const baseEdges = sortedEdges
-
-  const leagueOptions = useMemo(() => {
-    const dynamicOptions = baseEdges.map((game) =>
-      resolveSportLabel(resolveGameSportKey(game, sport))
-    )
-    return ["all", ...Array.from(new Set([...DEFAULT_LEAGUE_FILTER_OPTIONS, ...dynamicOptions]))]
-  }, [baseEdges, sport])
-
-  const matchOptions = useMemo(
-    () => ["all", ...Array.from(new Set(baseEdges.map((game) => `${game.awayTeam} vs ${game.homeTeam}`))).slice(0, 80)],
-    [baseEdges]
-  )
+  }, [rows])
 
   useEffect(() => {
-    if (matchFilter !== "all" && !matchOptions.includes(matchFilter)) {
-      setMatchFilter("all")
-    }
-  }, [matchFilter, matchOptions])
+    if (!historyRow) return
 
-  useEffect(() => {
-    if (leagueFilter !== "all" && !leagueOptions.includes(leagueFilter)) {
-      setLeagueFilter("all")
-    }
-  }, [leagueFilter, leagueOptions])
-
-  useEffect(() => {
-    if (!historyModal) return
-
-    let cancelled = false
-
-    const loadLineHistory = async () => {
-      const fallback = resolveLineHistoryFallback(historyModal.game, historyModal.market)
-      const oddsApiId = historyModal.game.oddsApiId
-      const side = resolveLineHistorySide(
-        historyModal.game,
-        historyModal.market,
-        historyModal.pick
-      )
-      if (!oddsApiId) {
-        if (cancelled) return
-        setLineHistoryPoints(fallback)
-        setLineHistoryBook("Pinnacle")
-        return
-      }
-
-      const response = await fetch("/api/lines/history-batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          gameIds: [oddsApiId],
-          games: [
-            {
-              id: oddsApiId,
-              homeTeam: historyModal.game.homeTeam,
-              awayTeam: historyModal.game.awayTeam,
-              commenceTime: historyModal.game.commenceTime,
-            },
-          ],
-          markets: [historyModal.market],
-          side,
-          hours: 120,
-          lineType: "current",
-          bookmaker: "pinnacle",
-          limit: 2000,
-        }),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload?.error || "Unable to load line history.")
-      }
-
-      const entry =
-        payload?.series?.[oddsApiId]?.[historyModal.market]
-      const linePoints = Array.isArray(entry?.linePoints)
-        ? entry.linePoints
-        : Array.isArray(entry?.points)
-          ? entry.points
-          : []
-      const oddsPoints = Array.isArray(entry?.oddsPoints) ? entry.oddsPoints : []
-
-      const byTime = new Map<string, { line: number | null; odds: number | null }>()
-      for (const point of linePoints) {
-        const t = typeof point?.t === "string" ? point.t : ""
-        const line = coerceNumber(point?.value)
-        if (!t || line == null) continue
-        const existing = byTime.get(t) ?? { line: null, odds: null }
-        existing.line = line
-        byTime.set(t, existing)
-      }
-      for (const point of oddsPoints) {
-        const t = typeof point?.t === "string" ? point.t : ""
-        const odds = coerceNumber(point?.value)
-        if (!t || odds == null) continue
-        const existing = byTime.get(t) ?? { line: null, odds: null }
-        existing.odds = odds
-        byTime.set(t, existing)
-      }
-
-      const parsed: LineHistoryPoint[] = Array.from(byTime.entries())
-        .map(([t, values]) => ({
-          t,
-          line: values.line,
-          odds: values.odds,
-        }))
-        .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
-        .filter((point) => point.t && (point.line != null || point.odds != null))
-
-      if (cancelled) return
-      setLineHistoryPoints(parsed.length ? parsed : fallback)
-      setLineHistoryBook("Pinnacle")
-    }
-
-    const loadLimitHistory = async () => {
-      const side = resolveLineHistorySide(
-        historyModal.game,
-        historyModal.market,
-        historyModal.pick
-      )
-      const params = new URLSearchParams({
-        market: historyModal.market,
-        side,
-        hours: "120",
-        limit: "1000",
-      })
-      const sportKey = resolveGameSportKey(historyModal.game, sport)
-      if (sportKey) params.set("sport", sportKey)
-      if (historyModal.game.oddsApiId) params.set("oddsApiId", historyModal.game.oddsApiId)
-      params.set("homeTeam", historyModal.game.homeTeam)
-      params.set("awayTeam", historyModal.game.awayTeam)
-      if (historyModal.game.commenceTime) params.set("commenceTime", historyModal.game.commenceTime)
-
-      const response = await fetch(
-        `/api/market-projections/limit-history?${params.toString()}`,
-        { cache: "no-store" }
-      )
-      const payload = await response.json().catch(() => ({}))
-
-      const parsed: LimitHistoryPoint[] = response.ok && Array.isArray(payload?.points)
-        ? payload.points
-            .map((point: any) => ({
-              t: typeof point?.t === "string" ? point.t : "",
-              score: coerceNumber(point?.score),
-              label: typeof point?.label === "string" ? point.label : null,
-              forLimit: coerceNumber(point?.forLimit),
-              againstLimit: coerceNumber(point?.againstLimit),
-              netLimit: coerceNumber(point?.netLimit),
-              line: coerceNumber(point?.line),
-              odds: coerceNumber(point?.odds),
-            }))
-            .filter((point: LimitHistoryPoint) => Boolean(point.t))
-            .sort(
-              (a: LimitHistoryPoint, b: LimitHistoryPoint) =>
-                Date.parse(a.t) - Date.parse(b.t)
-            )
-        : []
-
-      if (parsed.length) {
-        if (cancelled) return
-        setLimitHistoryPoints(parsed)
-        return
-      }
-
-      const fallback = resolveCurrentLimitSnapshot(
-        historyModal.game,
-        historyModal.market,
-        historyModal.pick,
-        historyModal.pressureLabel
-      )
-      if (cancelled) return
-      setLimitHistoryPoints(fallback ? [fallback] : [])
-    }
-
-    const run = async () => {
+    const controller = new AbortController()
+    const load = async () => {
       setHistoryLoading(true)
       setHistoryError(null)
-      setLineHistoryPoints([])
-      setLineHistoryBook(null)
-      setLimitHistoryPoints([])
       try {
-        if (historyModal.view === "line") {
-          await loadLineHistory()
-        } else {
-          await loadLimitHistory()
+        const params = new URLSearchParams({
+          market: historyRow.market,
+          side: resolveDefaultSide(historyRow.market),
+          hours: "72",
+          limit: "1000",
+        })
+
+        if (historyRow.sport) params.set("sport", historyRow.sport)
+        params.set("homeTeam", historyRow.homeTeam)
+        params.set("awayTeam", historyRow.awayTeam)
+        if (historyRow.commenceTime) {
+          params.set("commenceTime", historyRow.commenceTime)
         }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unable to load chart history."
-        if (!cancelled) {
-          if (historyModal.view === "limit") {
-            const fallback = resolveCurrentLimitSnapshot(
-              historyModal.game,
-              historyModal.market,
-              historyModal.pick,
-              historyModal.pressureLabel
-            )
-            setLimitHistoryPoints(fallback ? [fallback] : [])
-            setHistoryError(fallback ? null : message)
-          } else {
-            setHistoryError(message)
+        if (historyRow.oddsApiId) {
+          params.set("oddsApiId", historyRow.oddsApiId)
+        }
+
+        const response = await fetch(
+          `/api/market-projections/limit-history?${params.toString()}`,
+          {
+            signal: controller.signal,
+            cache: "no-store",
           }
-        }
+        )
+
+        if (!response.ok) throw new Error("Failed to fetch limit history.")
+        const payload = await response.json()
+        const points = Array.isArray(payload?.points)
+          ? (payload.points as LimitHistoryPoint[])
+          : []
+        const apiLineSeries = Array.isArray(payload?.lineSeries)
+          ? (payload.lineSeries as Array<{ t?: string; line?: number | null }>)
+          : []
+        const apiOddsSeries = Array.isArray(payload?.oddsSeries)
+          ? (payload.oddsSeries as Array<{ t?: string; odds?: number | null }>)
+          : []
+        const apiHourlySeries = Array.isArray(payload?.hourlySeries)
+          ? (payload.hourlySeries as Array<{ t?: string; line?: number | null; odds?: number | null }>)
+          : []
+        const priceLevels = Array.isArray(payload?.priceLevels)
+          ? (payload.priceLevels as PriceLevelRow[])
+          : []
+        const normalizedPoints = points
+          .filter((point) => typeof point.t === "string" && point.t)
+          .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
+        setHistoryPoints(normalizedPoints)
+        setHistoryLineSeries(
+          apiLineSeries
+            .filter(
+              (point): point is { t: string; line: number } =>
+                typeof point?.t === "string" &&
+                point.t.length > 0 &&
+                typeof point?.line === "number" &&
+                Number.isFinite(point.line)
+            )
+            .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
+        )
+        setHistoryOddsSeries(
+          apiOddsSeries
+            .filter(
+              (point): point is { t: string; odds: number } =>
+                typeof point?.t === "string" &&
+                point.t.length > 0 &&
+                typeof point?.odds === "number" &&
+                Number.isFinite(point.odds)
+            )
+            .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
+        )
+        setHistoryHourlySeries(
+          apiHourlySeries
+            .filter(
+              (point): point is { t: string; line: number | null; odds: number | null } =>
+                typeof point?.t === "string" &&
+                point.t.length > 0 &&
+                ((typeof point?.line === "number" && Number.isFinite(point.line)) ||
+                  (typeof point?.odds === "number" && Number.isFinite(point.odds)))
+            )
+            .map((point) => ({
+              t: point.t,
+              line:
+                typeof point.line === "number" && Number.isFinite(point.line)
+                  ? point.line
+                  : null,
+              odds:
+                typeof point.odds === "number" && Number.isFinite(point.odds)
+                  ? point.odds
+                  : null,
+            }))
+            .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
+        )
+        setHistoryPriceLevels(priceLevels)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setHistoryError(
+          error instanceof Error ? error.message : "Failed to load limit history."
+        )
+        setHistoryPoints([])
+        setHistoryLineSeries([])
+        setHistoryOddsSeries([])
+        setHistoryHourlySeries([])
+        setHistoryPriceLevels([])
       } finally {
-        if (!cancelled) setHistoryLoading(false)
+        if (!controller.signal.aborted) setHistoryLoading(false)
       }
     }
 
-    void run()
+    load()
+    return () => controller.abort()
+  }, [historyRow])
 
-    return () => {
-      cancelled = true
-    }
-  }, [historyModal, sport])
-
-  const filteredEdges = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return baseEdges.filter((game) => {
-      const leagueLabel = resolveSportLabel(resolveGameSportKey(game, sport))
-      const matchupLabel = `${game.awayTeam} vs ${game.homeTeam}`
-      const activePick = resolveActivePickForFilter(
-        game,
-        filter,
-        resolveGameSportKey(game, sport),
-        selectedBook
-      )
-      const activeMarket = resolveActiveMarketFilter(filter, activePick)
-      const hasSelectedBookLine =
-        resolveBookOddsFromQuote(game, activeMarket, activePick, selectedBook) != null
-
-      if (leagueFilter !== "all" && leagueLabel !== leagueFilter) return false
-      if (matchFilter !== "all" && matchupLabel !== matchFilter) return false
-      if (!matchesDateWindow(game.commenceTime, dateFilter)) return false
-      if (!hasSelectedBookLine) return false
-      if (!query) return true
-      return (
-        matchupLabel.toLowerCase().includes(query) ||
-        summarizeSharpSignalsPlain(game.sharpSignals).toLowerCase().includes(query)
-      )
-    })
-  }, [baseEdges, sport, leagueFilter, matchFilter, dateFilter, searchQuery, filter, selectedBook])
-
-  const visibleEdges = previewMode ? filteredEdges.slice(0, 1) : filteredEdges
-  const latestLimitSnapshot = useMemo(
+  const hasHistoryLine = useMemo(
     () =>
-      limitHistoryPoints.length
-        ? limitHistoryPoints[limitHistoryPoints.length - 1]
-        : null,
-    [limitHistoryPoints]
+      historyLineSeries.length > 0 ||
+      historyHourlySeries.some(
+        (point) => point.line != null && Number.isFinite(point.line)
+      ),
+    [historyLineSeries, historyHourlySeries]
   )
 
-  const filterLabels = resolveFilterLabels(filter)
-  const handleBookSelect = (book: BookFilterKey) => {
-    setSelectedBook(book)
-    setShowBookPicker(false)
-  }
+  const hasHistoryOdds = useMemo(
+    () =>
+      historyOddsSeries.length > 0 ||
+      historyHourlySeries.some(
+        (point) => point.odds != null && Number.isFinite(point.odds)
+      ),
+    [historyOddsSeries, historyHourlySeries]
+  )
 
-  const openLineHistory = (game: EdgeGame, market: MarketFilter, pick: EdgePick) => {
-    setHistoryModal({
-      view: "line",
-      game,
-      market,
-      pick,
-    })
-  }
+  const hourlyLineSeries = useMemo(
+    () =>
+      historyHourlySeries
+        .filter(
+          (point): point is { t: string; line: number; odds: number | null } =>
+            point.line != null && Number.isFinite(point.line)
+        )
+        .map((point) => ({ t: point.t, line: point.line })),
+    [historyHourlySeries]
+  )
 
-  const openLimitHistory = (
-    game: EdgeGame,
-    market: MarketFilter,
-    pick: EdgePick,
-    pressureLabel?: string
-  ) => {
-    setHistoryModal({
-      view: "limit",
-      game,
-      market,
-      pick,
-      pressureLabel,
+  const hourlyOddsSeries = useMemo(
+    () =>
+      historyHourlySeries
+        .filter(
+          (point): point is { t: string; line: number | null; odds: number } =>
+            point.odds != null && Number.isFinite(point.odds)
+        )
+        .map((point) => ({ t: point.t, odds: point.odds })),
+    [historyHourlySeries]
+  )
+
+  const lineSeries = useMemo(
+    () =>
+      hourlyLineSeries.length
+        ? hourlyLineSeries
+        : historyLineSeries.length
+        ? historyLineSeries
+        : historyPoints
+            .filter((point) => point.line != null)
+            .map((point) => ({ t: point.t, line: point.line as number })),
+    [hourlyLineSeries, historyLineSeries, historyPoints]
+  )
+
+  const oddsSeries = useMemo(
+    () =>
+      hourlyOddsSeries.length
+        ? hourlyOddsSeries
+        : historyOddsSeries.length
+        ? historyOddsSeries
+        : historyPoints
+            .filter((point) => point.odds != null)
+            .map((point) => ({ t: point.t, odds: point.odds as number })),
+    [hourlyOddsSeries, historyOddsSeries, historyPoints]
+  )
+
+  const limitSeries = useMemo(
+    () =>
+      historyPoints.map((point) => ({
+        t: point.t,
+        forLimit: point.forLimit,
+        againstLimit: point.againstLimit,
+        netLimit: point.netLimit,
+    })),
+    [historyPoints]
+  )
+
+  const lineDelta = useMemo(() => {
+    if (lineSeries.length < 2) return null
+    const first = lineSeries[0]?.line
+    const last = lineSeries[lineSeries.length - 1]?.line
+    if (!Number.isFinite(first) || !Number.isFinite(last)) return null
+    return (last as number) - (first as number)
+  }, [lineSeries])
+
+  const oddsDelta = useMemo(() => {
+    if (oddsSeries.length < 2) return null
+    const first = oddsSeries[0]?.odds
+    const last = oddsSeries[oddsSeries.length - 1]?.odds
+    if (!Number.isFinite(first) || !Number.isFinite(last)) return null
+    return (last as number) - (first as number)
+  }, [oddsSeries])
+
+  const limitRange = useMemo(() => {
+    if (!limitSeries.length) return null
+    const valid = limitSeries
+      .map((point) => point.netLimit)
+      .filter((value): value is number => value != null && Number.isFinite(value))
+    if (!valid.length) return null
+    return Math.max(...valid) - Math.min(...valid)
+  }, [limitSeries])
+
+  const hasLimitSeries = useMemo(
+    () =>
+      limitSeries.some(
+        (point) =>
+          point.forLimit != null || point.againstLimit != null || point.netLimit != null
+      ),
+    [limitSeries]
+  )
+
+  const hasAnyHistory = useMemo(
+    () =>
+      historyPoints.length > 0 ||
+      lineSeries.length > 0 ||
+      oddsSeries.length > 0 ||
+      historyHourlySeries.length > 0,
+    [historyPoints.length, lineSeries.length, oddsSeries.length, historyHourlySeries.length]
+  )
+
+  const effectivePriceLevels = useMemo(() => {
+    if (historyPriceLevels.length) return historyPriceLevels
+
+    const byKey = new Map<string, PriceLevelRow>()
+    for (const point of historyPoints) {
+      const hasPrice = point.line != null || point.odds != null
+      const hasLimit =
+        point.forLimit != null || point.againstLimit != null || point.netLimit != null
+      if (!hasPrice || !hasLimit) continue
+
+      const lineKey = point.line == null ? "na" : String(point.line)
+      const oddsKey = point.odds == null ? "na" : String(point.odds)
+      const key = `${lineKey}|${oddsKey}`
+      const existing = byKey.get(key)
+      if (!existing) {
+        byKey.set(key, {
+          line: point.line ?? null,
+          odds: point.odds ?? null,
+          maxForLimit: point.forLimit ?? null,
+          maxAgainstLimit: point.againstLimit ?? null,
+          maxAbsNetLimit: point.netLimit != null ? Math.abs(point.netLimit) : null,
+          latestForLimit: point.forLimit ?? null,
+          latestAgainstLimit: point.againstLimit ?? null,
+          latestNetLimit: point.netLimit ?? null,
+          lastSeen: point.t,
+          samples: 1,
+        })
+        continue
+      }
+
+      existing.maxForLimit =
+        existing.maxForLimit == null
+          ? (point.forLimit ?? null)
+          : Math.max(existing.maxForLimit, point.forLimit ?? existing.maxForLimit)
+      existing.maxAgainstLimit =
+        existing.maxAgainstLimit == null
+          ? (point.againstLimit ?? null)
+          : Math.max(existing.maxAgainstLimit, point.againstLimit ?? existing.maxAgainstLimit)
+      const absNet = point.netLimit != null ? Math.abs(point.netLimit) : null
+      existing.maxAbsNetLimit =
+        existing.maxAbsNetLimit == null
+          ? absNet
+          : Math.max(existing.maxAbsNetLimit, absNet ?? existing.maxAbsNetLimit)
+      if (Date.parse(point.t) >= Date.parse(existing.lastSeen)) {
+        existing.latestForLimit = point.forLimit ?? null
+        existing.latestAgainstLimit = point.againstLimit ?? null
+        existing.latestNetLimit = point.netLimit ?? null
+        existing.lastSeen = point.t
+      }
+      existing.samples += 1
+    }
+
+    return Array.from(byKey.values()).sort((a, b) => {
+      const aNet = Math.abs(a.latestNetLimit ?? 0)
+      const bNet = Math.abs(b.latestNetLimit ?? 0)
+      if (bNet !== aNet) return bNet - aNet
+      const aDepth = Math.max(a.maxForLimit ?? 0, a.maxAgainstLimit ?? 0)
+      const bDepth = Math.max(b.maxForLimit ?? 0, b.maxAgainstLimit ?? 0)
+      return bDepth - aDepth
     })
-  }
+  }, [historyPoints, historyPriceLevels])
+
+  const maxLatestNet = useMemo(() => {
+    if (!effectivePriceLevels.length) return 1
+    return Math.max(1, ...effectivePriceLevels.map((row) => Math.abs(row.latestNetLimit ?? 0)))
+  }, [effectivePriceLevels])
+
+  const maxPriceDepth = useMemo(() => {
+    if (!effectivePriceLevels.length) return 1
+    return Math.max(
+      1,
+      ...effectivePriceLevels.map((row) => Math.max(row.maxForLimit ?? 0, row.maxAgainstLimit ?? 0))
+    )
+  }, [effectivePriceLevels])
+
+  const isPaidTier = tier === "sharp" || tier === "syndicate"
 
   return (
-    <>
-      {historyModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-3">
-          <div className="relative w-full max-w-4xl rounded-2xl border border-white/15 bg-[#040608] p-4">
-            <button
-              type="button"
-              onClick={() => setHistoryModal(null)}
-              className="absolute right-4 top-4 rounded-md border border-white/20 bg-black/60 px-3 py-1.5 text-xs text-white/80 hover:border-white/40"
-            >
-              Close
-            </button>
-            <div className="pr-20">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-white/45">
-                {historyModal.view === "line" ? "Line movement history" : "Limit pressure history"}
-              </p>
-              <h3 className="mt-1 text-base font-semibold text-white">
-                {historyModal.game.awayTeam} vs {historyModal.game.homeTeam}
-              </h3>
-              <p className="mt-1 text-xs text-white/55">
-                {historyModal.market.toUpperCase()} | {formatShortDateTime(historyModal.game.commenceTime)}
-                {historyModal.view === "line" && lineHistoryBook ? ` | ${lineHistoryBook}` : ""}
-              </p>
-            </div>
+    <section className="space-y-4 rounded-2xl border border-white/10 bg-black/50 p-4 sm:p-5">
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-200/75">Sharp Movement</p>
+        <h2 className="text-xl font-semibold text-white sm:text-2xl">
+          Pinnacle line movement and limit expansion board
+        </h2>
+        <p className="text-sm text-white/65">
+          Ranked by market movement strength, limit expansion, and sharp-flagged velocity from
+          sharp books.
+        </p>
+      </div>
 
-            <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3">
-              {historyLoading ? (
-                <div className="py-14 text-center text-sm text-white/60">Loading history...</div>
-              ) : historyError ? (
-                <div className="py-14 text-center text-sm text-red-200">{historyError}</div>
-              ) : historyModal.view === "line" ? (
-                lineHistoryPoints.length ? (
-                  <div className="h-[280px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={lineHistoryPoints}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 4" />
-                        <XAxis
-                          dataKey="t"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => formatHistoryTime(value)}
-                        />
-                        <YAxis
-                          yAxisId="line"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) =>
-                            historyModal.market === "moneyline"
-                              ? formatOdds(value)
-                              : formatSigned(value)
-                          }
-                        />
-                        <YAxis
-                          yAxisId="odds"
-                          orientation="right"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => formatOdds(value)}
-                        />
-                        <Tooltip
-                          labelFormatter={(label) => formatShortDateTime(String(label))}
-                          formatter={(value: unknown, name: string) => {
-                            const numeric = coerceNumber(value)
-                            if (name === "Odds") {
-                              return [formatOdds(numeric), "Odds"]
-                            }
-                            return [
-                              historyModal.market === "moneyline"
-                                ? formatOdds(numeric)
-                                : formatSigned(numeric),
-                              "Line",
-                            ]
-                          }}
-                          contentStyle={{
-                            background: "rgba(0,0,0,0.9)",
-                            border: "1px solid rgba(255,255,255,0.16)",
-                            borderRadius: "10px",
-                            color: "white",
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          yAxisId="line"
-                          dataKey="line"
-                          name="Line"
-                          stroke="#4ade80"
-                          strokeWidth={2.4}
-                          dot={false}
-                          activeDot={{ r: 4, fill: "#86efac" }}
-                        />
-                        <Line
-                          type="monotone"
-                          yAxisId="odds"
-                          dataKey="odds"
-                          name="Odds"
-                          stroke="#60a5fa"
-                          strokeWidth={2.2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTERS.map((item) => {
+          const active = filter === item
+          return (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setFilter(item)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                active
+                  ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-200"
+                  : "border-white/15 bg-black/40 text-white/65 hover:border-white/25 hover:text-white"
+              }`}
+            >
+              {item === "all" ? "All Markets" : MARKET_LABELS[item]}
+            </button>
+          )
+        })}
+        <div className="ml-auto rounded-full border border-white/15 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white/55">
+          Source: Pinnacle-first
+        </div>
+      </div>
+
+      {errorMessage ? (
+        <div className="rounded-xl border border-red-300/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      {!rows.length ? (
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-10 text-center text-sm text-white/60">
+          No sharp movement rows available yet.
+        </div>
+      ) : (
+        <>
+          <div className="hidden overflow-hidden rounded-xl border border-white/10 md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 bg-white/5 hover:bg-white/5">
+                  <TableHead>Matchup</TableHead>
+                  <TableHead>Start</TableHead>
+                  <TableHead>Market</TableHead>
+                  <TableHead>Pinnacle Line</TableHead>
+                  <TableHead>Pinnacle Odds</TableHead>
+                  <TableHead>Line Move</TableHead>
+                  <TableHead>Limit Expansion</TableHead>
+                  <TableHead>Max Limit</TableHead>
+                  <TableHead>Visuals</TableHead>
+                  <TableHead className="text-right">History</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id} className="border-white/10 hover:bg-white/5">
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-white">{row.matchup}</p>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                          {resolveSportLabel(row.sport)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-white/75">
+                      {formatShortTime(row.commenceTime)}
+                    </TableCell>
+                    <TableCell className="text-sm text-white/80">{row.marketLabel}</TableCell>
+                    <TableCell className="text-sm text-white/80">{row.pinnacleLine}</TableCell>
+                    <TableCell className="text-sm text-white/80">{row.pinnacleOdds}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm text-white/80">
+                        <p>{row.movementLabel}</p>
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-200/80">
+                          {row.movementDelta == null
+                            ? "No numeric delta"
+                            : `Delta ${formatSignedNumber(row.movementDelta, row.market === "moneyline" ? 0 : 2)}`}
+                          {row.isSharpMove ? " - Sharp" : ""}
+                          {!row.isSharpMove && row.isSignificantMove ? " - Significant" : ""}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm text-white/80">
+                        <p>{row.limitLabel}</p>
+                        <p className="text-[11px] text-white/55">
+                          {row.limitExpansion == null
+                            ? "n/a"
+                            : `${formatLimit(row.limitExpansion)} spread`}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-white/80">
+                      {formatLimit(row.maxLimit)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
+                            <span>Line/Odds Move</span>
+                            <span>{toPercentRatio(row.movementMagnitude, maxMovementMagnitude).toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-white/10">
+                            <div
+                              className="h-1.5 rounded-full bg-gradient-to-r from-sky-400 to-cyan-300"
+                              style={{
+                                width: `${toPercentRatio(
+                                  row.movementMagnitude,
+                                  maxMovementMagnitude
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
+                            <span>Limit Spread</span>
+                            <span>{toPercentRatio(row.limitExpansion, maxLimitExpansion).toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-white/10">
+                            <div
+                              className="h-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-lime-300"
+                              style={{
+                                width: `${toPercentRatio(
+                                  row.limitExpansion,
+                                  maxLimitExpansion
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryRow(row)}
+                        className="rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/70 transition hover:border-emerald-400/50 hover:text-emerald-200"
+                      >
+                        View
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {rows.map((row) => (
+              <div key={row.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{row.matchup}</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                      {resolveSportLabel(row.sport)} - {row.marketLabel}
+                    </p>
                   </div>
-                ) : (
-                  <div className="py-14 text-center text-sm text-white/60">No line movement history yet.</div>
-                )
-              ) : limitHistoryPoints.length ? (
-                <div className="space-y-3">
-                  <div className="h-[240px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={limitHistoryPoints}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 4" />
-                        <XAxis
-                          dataKey="t"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => formatHistoryTime(value)}
-                        />
-                        <YAxis
-                          yAxisId="limits"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => formatCurrency(value)}
-                        />
-                        <YAxis
-                          yAxisId="odds"
-                          orientation="right"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => formatOdds(value)}
-                        />
-                        <Tooltip
-                          labelFormatter={(label) => formatShortDateTime(String(label))}
-                          formatter={(value: unknown, name: string) => {
-                            if (name === "Pinnacle odds") return [formatOdds(coerceNumber(value)), name]
-                            return [formatCurrency(coerceNumber(value)), name]
-                          }}
-                          contentStyle={{
-                            background: "rgba(0,0,0,0.9)",
-                            border: "1px solid rgba(255,255,255,0.16)",
-                            borderRadius: "10px",
-                            color: "white",
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          yAxisId="limits"
-                          dataKey="forLimit"
-                          name="For"
-                          stroke="#60a5fa"
-                          strokeWidth={2}
-                          dot={limitHistoryPoints.length <= 1}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          yAxisId="limits"
-                          dataKey="againstLimit"
-                          name="Against"
-                          stroke="#f87171"
-                          strokeWidth={2}
-                          dot={limitHistoryPoints.length <= 1}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          yAxisId="limits"
-                          dataKey="netLimit"
-                          name="Net"
-                          stroke="#4ade80"
-                          strokeWidth={2.3}
-                          dot={limitHistoryPoints.length <= 1}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          yAxisId="odds"
-                          dataKey="odds"
-                          name="Pinnacle odds"
-                          stroke="#c084fc"
-                          strokeWidth={2}
-                          dot={limitHistoryPoints.length <= 1}
-                          connectNulls
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryRow(row)}
+                    className="rounded-lg border border-white/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70"
+                  >
+                    History
+                  </button>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Start</p>
+                    <p>{formatShortTime(row.commenceTime)}</p>
                   </div>
-                  <div className="h-[130px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={limitHistoryPoints}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 4" />
-                        <XAxis
-                          dataKey="t"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => formatHistoryTime(value)}
-                        />
-                        <YAxis
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-                          tickFormatter={(value) => {
-                            const numeric = coerceNumber(value)
-                            return numeric == null ? "n/a" : numeric.toFixed(3)
-                          }}
-                        />
-                        <Tooltip
-                          labelFormatter={(label) => formatShortDateTime(String(label))}
-                          formatter={(value: unknown) => {
-                            const numeric = coerceNumber(value)
-                            return [numeric == null ? "n/a" : numeric.toFixed(3), "Pressure score"]
-                          }}
-                          contentStyle={{
-                            background: "rgba(0,0,0,0.9)",
-                            border: "1px solid rgba(255,255,255,0.16)",
-                            borderRadius: "10px",
-                            color: "white",
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="score"
-                          name="Pressure score"
-                          stroke="#facc15"
-                          strokeWidth={2}
-                          dot={limitHistoryPoints.length <= 1}
-                          connectNulls
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Pinnacle Line</p>
+                    <p>{row.pinnacleLine}</p>
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
-                    Current snapshot: For {formatCurrency(latestLimitSnapshot?.forLimit)} | Against{" "}
-                    {formatCurrency(latestLimitSnapshot?.againstLimit)} | Net{" "}
-                    {formatCurrency(latestLimitSnapshot?.netLimit)} | Pinnacle odds{" "}
-                    {formatOdds(latestLimitSnapshot?.odds ?? null)}
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Pinnacle Odds</p>
+                    <p>{row.pinnacleOdds}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Max Limit</p>
+                    <p>{formatLimit(row.maxLimit)}</p>
                   </div>
                 </div>
+
+                <div className="mt-3 rounded-lg border border-white/10 bg-black/35 p-2 text-xs text-white/70">
+                  <p>{row.movementLabel}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-emerald-200/80">
+                    {row.movementDelta == null
+                      ? "No numeric delta"
+                      : `Delta ${formatSignedNumber(row.movementDelta, row.market === "moneyline" ? 0 : 2)}`}
+                    {row.isSharpMove ? " - Sharp" : ""}
+                    {!row.isSharpMove && row.isSignificantMove ? " - Significant" : ""}
+                  </p>
+                </div>
+
+                <div className="mt-2 space-y-1.5 rounded-lg border border-white/10 bg-black/35 p-2">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
+                    <span>Line/Odds Move</span>
+                    <span>{toPercentRatio(row.movementMagnitude, maxMovementMagnitude).toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/10">
+                    <div
+                      className="h-1.5 rounded-full bg-gradient-to-r from-sky-400 to-cyan-300"
+                      style={{
+                        width: `${toPercentRatio(row.movementMagnitude, maxMovementMagnitude)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
+                    <span>Limit Spread</span>
+                    <span>{toPercentRatio(row.limitExpansion, maxLimitExpansion).toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/10">
+                    <div
+                      className="h-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-lime-300"
+                      style={{
+                        width: `${toPercentRatio(row.limitExpansion, maxLimitExpansion)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <p className="mt-2 text-[11px] text-white/55">
+                  {row.limitLabel}
+                  {row.limitExpansion != null ? ` (${formatLimit(row.limitExpansion)} spread)` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {previewMode && !isPaidTier ? (
+            <div className="rounded-xl border border-emerald-400/35 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+              Preview mode is active. Upgrade to unlock full movement depth and all tracked rows.
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {historyRow ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border border-white/15 bg-[#060606] p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                  {historyRow.marketLabel} history
+                </p>
+                <h3 className="text-lg font-semibold text-white">{historyRow.matchup}</h3>
+                <p className="text-sm text-white/60">{formatShortTime(historyRow.commenceTime)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryRow(null)
+                  setHistoryError(null)
+                  setHistoryPoints([])
+                  setHistoryLineSeries([])
+                  setHistoryOddsSeries([])
+                  setHistoryHourlySeries([])
+                  setHistoryPriceLevels([])
+                }}
+                className="rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/70"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-white/50">Line Change</p>
+                <p className="mt-1 text-lg font-semibold text-white">{formatSignedNumber(lineDelta, 2)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-white/50">Odds Change</p>
+                <p className="mt-1 text-lg font-semibold text-white">{formatSignedNumber(oddsDelta, 0)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-white/50">Net Limit Range</p>
+                <p className="mt-1 text-lg font-semibold text-white">{formatLimit(limitRange)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-white/50">Snapshots</p>
+                <p className="mt-1 text-lg font-semibold text-white">
+                  {Math.max(
+                    historyPoints.length,
+                    lineSeries.length,
+                    oddsSeries.length,
+                    historyHourlySeries.length
+                  ).toLocaleString("en-US")}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-white/10 bg-black/40 p-3">
+              {historyLoading ? (
+                <div className="flex h-[260px] items-center justify-center text-sm text-white/60">
+                  Loading movement history...
+                </div>
+              ) : historyError ? (
+                <div className="flex h-[260px] items-center justify-center text-sm text-red-200">
+                  {historyError}
+                </div>
+              ) : !hasAnyHistory ? (
+                <div className="flex h-[260px] items-center justify-center text-sm text-white/60">
+                  No line/limit history yet.
+                </div>
               ) : (
-                <div className="py-14 text-center text-sm text-white/60">No limit history yet.</div>
+                <div className="space-y-3">
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-2">
+                      <p className="px-2 pb-1 text-[11px] uppercase tracking-[0.16em] text-white/50">
+                        Line movement
+                      </p>
+                      <div className="h-[220px]">
+                        {hasHistoryLine ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={lineSeries}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                              <XAxis
+                                dataKey="t"
+                                tickFormatter={(value) => {
+                                  const parsed = new Date(value)
+                                  if (Number.isNaN(parsed.getTime())) return ""
+                                  return parsed.toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                }}
+                                stroke="rgba(255,255,255,0.45)"
+                                minTickGap={32}
+                              />
+                              <YAxis stroke="rgba(255,255,255,0.45)" width={64} />
+                              <Tooltip
+                                formatter={(value: unknown) => {
+                                  const numeric = Array.isArray(value)
+                                    ? coerceNumber(value[0])
+                                    : coerceNumber(value)
+                                  return [formatLineValue(numeric), "Line"]
+                                }}
+                                labelFormatter={(value) => formatShortTime(String(value))}
+                                contentStyle={{
+                                  backgroundColor: "#0a0a0a",
+                                  border: "1px solid rgba(255,255,255,0.18)",
+                                  borderRadius: 8,
+                                }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="line"
+                                stroke="#60a5fa"
+                                strokeWidth={2}
+                                dot={lineSeries.length <= 1}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-sm text-white/55">
+                            No line snapshots for this market.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-2">
+                      <p className="px-2 pb-1 text-[11px] uppercase tracking-[0.16em] text-white/50">
+                        Odds movement
+                      </p>
+                      <div className="h-[220px]">
+                        {hasHistoryOdds ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={oddsSeries}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                              <XAxis
+                                dataKey="t"
+                                tickFormatter={(value) => {
+                                  const parsed = new Date(value)
+                                  if (Number.isNaN(parsed.getTime())) return ""
+                                  return parsed.toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                }}
+                                stroke="rgba(255,255,255,0.45)"
+                                minTickGap={32}
+                              />
+                              <YAxis stroke="rgba(255,255,255,0.45)" width={64} />
+                              <Tooltip
+                                formatter={(value: unknown) => {
+                                  const numeric = Array.isArray(value)
+                                    ? coerceNumber(value[0])
+                                    : coerceNumber(value)
+                                  return [formatOdds(numeric), "Odds"]
+                                }}
+                                labelFormatter={(value) => formatShortTime(String(value))}
+                                contentStyle={{
+                                  backgroundColor: "#0a0a0a",
+                                  border: "1px solid rgba(255,255,255,0.18)",
+                                  borderRadius: 8,
+                                }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="odds"
+                                stroke="#fbbf24"
+                                strokeWidth={2}
+                                dot={oddsSeries.length <= 1}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-sm text-white/55">
+                            No odds snapshots for this market.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-black/35 p-2">
+                    <p className="px-2 pb-1 text-[11px] uppercase tracking-[0.16em] text-white/50">
+                      Limit movement
+                    </p>
+                    <div className="h-[250px]">
+                      {hasLimitSeries ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={limitSeries}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                            <XAxis
+                              dataKey="t"
+                              tickFormatter={(value) => {
+                                const parsed = new Date(value)
+                                if (Number.isNaN(parsed.getTime())) return ""
+                                return parsed.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              }}
+                              stroke="rgba(255,255,255,0.45)"
+                              minTickGap={32}
+                            />
+                            <YAxis stroke="rgba(255,255,255,0.45)" width={78} />
+                            <Tooltip
+                              formatter={(value: unknown, name: string) => {
+                                const numeric = Array.isArray(value)
+                                  ? coerceNumber(value[0])
+                                  : coerceNumber(value)
+                                if (name === "forLimit") return [formatLimit(numeric), "For Limit"]
+                                if (name === "againstLimit") return [formatLimit(numeric), "Against Limit"]
+                                return [formatSignedLimit(numeric), "Net Limit"]
+                              }}
+                              labelFormatter={(value) => formatShortTime(String(value))}
+                              contentStyle={{
+                                backgroundColor: "#0a0a0a",
+                                border: "1px solid rgba(255,255,255,0.18)",
+                                borderRadius: 8,
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="forLimit"
+                              stroke="#86efac"
+                              strokeDasharray="4 4"
+                              dot={false}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="againstLimit"
+                              stroke="#f87171"
+                              strokeDasharray="4 4"
+                              dot={false}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="netLimit"
+                              stroke="#34d399"
+                              strokeWidth={2}
+                              dot={limitSeries.length <= 1}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-white/55">
+                          No limit snapshots for this game.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-black/35 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
+                        Hourly line and price ladder
+                      </p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">
+                        {historyHourlySeries.length.toLocaleString("en-US")} hours
+                      </p>
+                    </div>
+                    {historyHourlySeries.length === 0 ? (
+                      <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-4 text-sm text-white/55">
+                        No hourly line snapshots available.
+                      </div>
+                    ) : (
+                      <div className="max-h-[320px] overflow-auto rounded-lg border border-white/10">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/10 bg-white/5 hover:bg-white/5">
+                              <TableHead>Hour (ET)</TableHead>
+                              <TableHead>Line</TableHead>
+                              <TableHead>Odds</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {historyHourlySeries.map((row, index) => (
+                              <TableRow
+                                key={`${row.t}-${index}`}
+                                className="border-white/10 hover:bg-white/5"
+                              >
+                                <TableCell className="text-sm text-white/70">
+                                  {formatShortTime(row.t)}
+                                </TableCell>
+                                <TableCell className="text-sm text-white/80">
+                                  {formatLineValue(row.line)}
+                                </TableCell>
+                                <TableCell className="text-sm text-white/80">
+                                  {formatOdds(row.odds)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-black/35 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
+                        Limit at each line and price
+                      </p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">
+                        {effectivePriceLevels.length.toLocaleString("en-US")} levels
+                      </p>
+                    </div>
+                    {effectivePriceLevels.length === 0 ? (
+                      <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-4 text-sm text-white/55">
+                        No line/price level snapshots yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/10 bg-white/5 hover:bg-white/5">
+                              <TableHead>Line</TableHead>
+                              <TableHead>Odds</TableHead>
+                              <TableHead>Latest Net</TableHead>
+                              <TableHead>For / Against</TableHead>
+                              <TableHead>Max Depth</TableHead>
+                              <TableHead>Samples</TableHead>
+                              <TableHead>Last Seen</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {effectivePriceLevels.map((level, index) => {
+                              const latestNetRatio = toPercentRatio(level.latestNetLimit, maxLatestNet)
+                              const depth = Math.max(
+                                level.maxForLimit ?? 0,
+                                level.maxAgainstLimit ?? 0
+                              )
+                              const depthRatio = toPercentRatio(depth, maxPriceDepth)
+
+                              return (
+                                <TableRow key={`${level.line ?? "na"}|${level.odds ?? "na"}|${index}`} className="border-white/10 hover:bg-white/5">
+                                  <TableCell className="text-sm text-white/80">
+                                    {formatLineValue(level.line)}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-white/80">
+                                    {formatOdds(level.odds)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="space-y-1">
+                                      <p className="text-sm text-white/80">
+                                        {formatSignedLimit(level.latestNetLimit)}
+                                      </p>
+                                      <div className="h-1.5 rounded-full bg-white/10">
+                                        <div
+                                          className={`h-1.5 rounded-full ${
+                                            (level.latestNetLimit ?? 0) >= 0
+                                              ? "bg-emerald-400"
+                                              : "bg-rose-400"
+                                          }`}
+                                          style={{ width: `${latestNetRatio}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-white/70">
+                                    <p>For: {formatLimit(level.latestForLimit)}</p>
+                                    <p>Against: {formatLimit(level.latestAgainstLimit)}</p>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="space-y-1">
+                                      <p className="text-sm text-white/80">{formatLimit(depth)}</p>
+                                      <div className="h-1.5 rounded-full bg-white/10">
+                                        <div
+                                          className="h-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-blue-400"
+                                          style={{ width: `${depthRatio}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-sm text-white/70">
+                                    {level.samples.toLocaleString("en-US")}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-white/60">
+                                    {formatShortTime(level.lastSeen)}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
         </div>
-      )}
-      {showBookPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3">
-          <div className="relative h-[88vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-white/15 bg-black">
-            <button
-              type="button"
-              onClick={() => setShowBookPicker(false)}
-              className="absolute right-4 top-4 z-[60] rounded-md border border-white/20 bg-black/60 px-3 py-1.5 text-xs text-white/80 hover:border-white/40"
-            >
-              Close
-            </button>
-            <div className="absolute left-4 top-4 z-[60] rounded-md border border-white/15 bg-black/70 px-3 py-2 text-xs text-white/80">
-              Select sportsbook ({BOOK_OPTIONS.length})
-            </div>
-            <div className="h-full overflow-y-auto px-4 pb-8 pt-16">
-              <div className="relative mx-auto h-[980px] max-w-6xl rounded-2xl border border-white/10 bg-black/40">
-                {BOOK_OPTIONS.map((option, index) => {
-                  const point = BOOK_SCATTER_POINTS[index % BOOK_SCATTER_POINTS.length]
-                  const isSelected = selectedBook === option.key
-
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => handleBookSelect(option.key)}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 text-center focus:outline-none"
-                      style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                    >
-                      <span
-                        className={`mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border text-[11px] font-semibold uppercase tracking-wide transition-all md:h-20 md:w-20 ${
-                          isSelected
-                            ? "border-emerald-300 bg-emerald-500/25 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.35)]"
-                            : "border-white/20 bg-white/5 text-white/70 hover:border-white/45 hover:text-white"
-                        }`}
-                      >
-                        {option.logoSrc ? (
-                          <Image
-                            src={option.logoSrc}
-                            alt={option.label}
-                            width={72}
-                            height={72}
-                            className="h-full w-full object-contain p-1"
-                          />
-                        ) : (
-                          resolveBookInitials(option.label)
-                        )}
-                      </span>
-                      <span
-                        className={`mt-2 block max-w-[120px] text-[11px] leading-tight ${
-                          isSelected ? "text-emerald-100" : "text-white/75"
-                        }`}
-                      >
-                        {option.label}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={leagueFilter}
-            onChange={(event) => setLeagueFilter(event.target.value)}
-            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
-          >
-            {leagueOptions.map((value) => (
-              <option key={value} value={value}>
-                {value === "all" ? "League: All" : `League: ${value}`}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as EdgeFilter)}
-            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
-          >
-            {accessConfig.allowedFilters.map((value) => (
-              <option key={value} value={value}>
-                {value === "all"
-                  ? "Market: All"
-                  : value === "spread"
-                    ? "Market: Spread"
-                    : value === "moneyline"
-                      ? "Market: Moneyline"
-                      : "Market: Total"}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={matchFilter}
-            onChange={(event) => setMatchFilter(event.target.value)}
-            className="max-w-[220px] rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
-          >
-            {matchOptions.map((value) => (
-              <option key={value} value={value}>
-                {value === "all" ? "Match: All" : value}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={dateFilter}
-            onChange={(event) => setDateFilter(event.target.value as DateWindowFilter)}
-            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
-          >
-            <option value="today">Date: Today</option>
-            <option value="24h">Date: 24h</option>
-            <option value="3d">Date: 3d</option>
-            <option value="all">Date: All</option>
-          </select>
-
-          <input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search teams..."
-            className="min-w-[180px] flex-1 rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:border-emerald-300/60 focus:outline-none"
-          />
-
-          <button
-            type="button"
-            onClick={() => setShowBookPicker(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-xs text-white/85 transition-colors hover:border-emerald-300/60"
-          >
-            {activeBookOption.logoSrc ? (
-              <Image
-                src={activeBookOption.logoSrc}
-                alt={activeBookOption.label}
-                width={34}
-                height={34}
-                className="h-[34px] w-[34px] rounded-md object-contain"
-              />
-            ) : (
-              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-md border border-white/20 bg-white/10 text-[10px] font-semibold tracking-wide text-white/85">
-                {resolveBookInitials(activeBookOption.label)}
-              </span>
-            )}
-            <span>Book: {activeBookOption.label}</span>
-          </button>
-
-          <div className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-white/50">
-            <span>live</span>
-            <span>|</span>
-            <span>{visibleEdges.length} rows</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] text-white/55">
-        Edge vs Book: sharp fair % minus selected book implied %. Sharp Fair %: limit-informed fair win probability. Bet: executable side and line.
-        {" "}Book Price: selected-book odds. Line Movement: click to open full line history chart. Limit Pressure: click pressure label (contraction/expansion/balanced) to view full limit history.
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        {errorMessage ? (
-          <div className="px-4 py-6 text-sm text-red-200">{errorMessage}</div>
-        ) : visibleEdges.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-white/60">
-            No {filterLabels.projection.toLowerCase()} rows yet.
-          </div>
-        ) : (
-          <>
-            <div className="divide-y divide-white/5 sm:hidden">
-              {visibleEdges.map((game, index) => {
-                const gameSport = resolveGameSportKey(game, sport)
-                const edgeMetrics = resolveEdgeVsBook(game, filter, gameSport, selectedBook)
-                const activePick = resolveActivePickForFilter(
-                  game,
-                  filter,
-                  gameSport,
-                  selectedBook
-                )
-                const betLabel = resolveBetLabel(game, filter, activePick, selectedBook)
-                const sharpFair = activePick.projection
-                  ? formatProbability(activePick.projection.probability)
-                  : "n/a"
-                const activeMarket = resolveActiveMarketFilter(filter, activePick)
-                const bookPrice = resolveSharpLineDisplay(
-                  game,
-                  activeMarket,
-                  activePick,
-                  selectedBook
-                )
-                const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
-                const sharePayload = buildProjectionSharePayload(
-                  game,
-                  filter,
-                  gameSport,
-                  activePick,
-                  edgeMetrics.edgePercent,
-                  selectedBook
-                )
-
-                return (
-                  <article
-                    key={`${game.matchup}-${game.commenceTime}`}
-                    className="space-y-3 px-3 py-3 text-xs text-white/70 transition-colors hover:bg-white/[0.03]"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                          #{index + 1} | {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
-                        </div>
-                        <div className="text-left text-sm font-semibold text-white">
-                          {game.awayTeam} vs {game.homeTeam}
-                        </div>
-                      </div>
-                      <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200">
-                        +{edgeMetrics.edgePercent.toFixed(1)}%
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sharp Fair %</div>
-                        <div className="mt-1 text-white">{sharpFair}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Bet</div>
-                        <div className="mt-1 text-white">{betLabel}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Book Price</div>
-                        <div className="mt-1 text-white/80">{bookPrice}</div>
-                      </div>
-                      <div className="col-span-2 rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line Movement</div>
-                        <button
-                          type="button"
-                          onClick={() => openLineHistory(game, activeMarket, activePick)}
-                          className="mt-1 rounded-md border border-emerald-300/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-200 transition-colors hover:border-emerald-200/60"
-                        >
-                          View history
-                        </button>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Limit Pressure</div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openLimitHistory(game, activeMarket, activePick, limitPressure)
-                          }
-                          className="mt-1 rounded-md border border-sky-300/30 bg-sky-500/10 px-2 py-1 text-[11px] font-medium text-sky-100 transition-colors hover:border-sky-200/60"
-                        >
-                          {limitPressure}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <ShareProjectionButton projection={sharePayload} />
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-            <div className="hidden sm:block">
-              <div className="overflow-x-auto">
-                <Table className="min-w-[1180px] text-[13px] text-white/75">
-                  <TableHeader className="bg-black/70">
-                    <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
-                      <TableHead className="w-[110px]">Edge vs Book</TableHead>
-                      <TableHead className="w-[110px]">Sharp Fair %</TableHead>
-                      <TableHead className="w-[360px]">Bet</TableHead>
-                      <TableHead className="w-[260px]">Line Movement</TableHead>
-                      <TableHead className="w-[140px]">
-                        <button
-                          type="button"
-                          onClick={() => setShowBookPicker(true)}
-                          className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
-                        >
-                          {activeBookOption.logoSrc ? (
-                            <Image
-                              src={activeBookOption.logoSrc}
-                              alt={activeBookOption.label}
-                              width={24}
-                              height={24}
-                              className="h-6 w-6 rounded-md object-contain"
-                            />
-                          ) : (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-md border border-white/20 bg-white/10 text-[8px] font-semibold tracking-wide text-white/85">
-                              {resolveBookInitials(activeBookOption.label)}
-                            </span>
-                          )}
-                          <span className="sr-only">Book Price</span>
-                        </button>
-                      </TableHead>
-                      <TableHead className="w-[220px]">Limit Pressure</TableHead>
-                      <TableHead className="w-[90px] text-right">Share</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-white/5">
-                    {visibleEdges.map((game, index) => {
-                      const gameSport = resolveGameSportKey(game, sport)
-                      const edgeMetrics = resolveEdgeVsBook(game, filter, gameSport, selectedBook)
-                      const activePick = resolveActivePickForFilter(
-                        game,
-                        filter,
-                        gameSport,
-                        selectedBook
-                      )
-                      const betLabel = resolveBetLabel(game, filter, activePick, selectedBook)
-                      const sharpFair = activePick.projection
-                        ? formatProbability(activePick.projection.probability)
-                        : "n/a"
-                      const activeMarket = resolveActiveMarketFilter(filter, activePick)
-                      const bookPrice = resolveSharpLineDisplay(
-                        game,
-                        activeMarket,
-                        activePick,
-                        selectedBook
-                      )
-                      const limitPressure = resolveLimitPressureDisplay(game, filter, activePick)
-                      const sharePayload = buildProjectionSharePayload(
-                        game,
-                        filter,
-                        gameSport,
-                        activePick,
-                        edgeMetrics.edgePercent,
-                        selectedBook
-                      )
-
-                      return (
-                        <TableRow
-                          key={`${game.matchup}-${game.commenceTime}`}
-                          className="border-white/5 transition-colors hover:bg-white/[0.03]"
-                        >
-                          <TableCell className="align-top">
-                            <span className="rounded-md border border-emerald-400/45 bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-200">
-                              +{edgeMetrics.edgePercent.toFixed(1)}%
-                            </span>
-                          </TableCell>
-                          <TableCell className="align-top">{sharpFair}</TableCell>
-                          <TableCell className="align-top">
-                            <div className="text-left text-sm font-semibold text-white">{betLabel}</div>
-                            <div className="mt-1 text-[11px] uppercase tracking-[0.15em] text-white/40">
-                              {game.awayTeam} vs {game.homeTeam} | #{index + 1} |{" "}
-                              {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-top text-white/70">
-                            <button
-                              type="button"
-                              onClick={() => openLineHistory(game, activeMarket, activePick)}
-                              className="rounded-md border border-emerald-300/30 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-200 transition-colors hover:border-emerald-200/60"
-                            >
-                              View history
-                            </button>
-                          </TableCell>
-                          <TableCell className="align-top text-white/80">{bookPrice}</TableCell>
-                          <TableCell className="align-top text-white/70">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openLimitHistory(game, activeMarket, activePick, limitPressure)
-                              }
-                              className="rounded-md border border-sky-300/30 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100 transition-colors hover:border-sky-200/60"
-                            >
-                              {limitPressure}
-                            </button>
-                          </TableCell>
-                          <TableCell className="align-top">
-                            <div className="flex justify-end">
-                              <ShareProjectionButton projection={sharePayload} />
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-      {previewMode && (
-        <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-          <div className="pointer-events-none blur-sm">
-            <div className="space-y-3 px-4 py-4">
-              {[1, 2, 3].map((row) => (
-                <div key={row} className="grid grid-cols-4 gap-3">
-                  <div className="h-4 rounded bg-white/10" />
-                  <div className="h-4 rounded bg-white/10" />
-                  <div className="h-4 rounded bg-white/10" />
-                  <div className="h-4 rounded bg-white/10" />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center p-6">
-            <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                Upgrade required
-              </p>
-              <h2 className="mt-3 text-xl font-semibold text-white">
-                Upgrade to get full access.
-              </h2>
-              <p className="mt-2 text-sm text-white/60">
-                Unlock every sharp projection and edge.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      ) : null}
+    </section>
   )
 }
-
-const resolvePickForMarket = (game: EdgeGame, market: MarketFilter, sport?: string) => {
-  const spreadPick = resolveSpreadEdgePick(game, sport)
-  const totalPick = resolveTotalEdgePick(game, sport)
-  const moneylinePick = resolveMoneylineEdgePick(game, sport)
-  if (market === "spread") return spreadPick
-  if (market === "moneyline") return moneylinePick
-  return totalPick
-}
-
-const resolveActivePickForFilter = (
-  game: EdgeGame,
-  filter: EdgeFilter,
-  sport?: string,
-  selectedBook: BookFilterKey = DEFAULT_BOOK_FILTER
-) => {
-  if (filter !== "all") {
-    return resolvePickForMarket(game, filter, sport)
-  }
-
-  const candidates = MARKET_FILTERS
-    .filter((market) => hasMarketData(game, market))
-    .map((market) => {
-      const pick = resolvePickForMarket(game, market, sport)
-      const edgePercent = resolveEdgeForPick({
-        game,
-        market,
-        pick,
-        sport,
-        selectedBook,
-      })
-      return { pick, edgePercent }
-    })
-    .sort((a, b) => b.edgePercent - a.edgePercent)
-
-  if (candidates.length) return candidates[0].pick
-  return resolvePickForMarket(game, "spread", sport)
-}
-

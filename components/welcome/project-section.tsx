@@ -17,14 +17,14 @@ export function ProjectSection() {
           Project
         </p>
         <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
-          Sharp Projections
+          Sharp Movement
         </h2>
       </div>
 
       <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/60 shadow-[0_24px_90px_rgba(16,185,129,0.12)]">
         <Image
           src="/Screenshot 2026-02-24 142211.png"
-          alt="Sharp projections table"
+          alt="Sharp movement table"
           width={1893}
           height={911}
           className="w-full object-cover"
@@ -36,9 +36,9 @@ export function ProjectSection() {
         <div className="lg:col-span-8">
           <h3 className="text-xl font-semibold text-white">How it works</h3>
           <p className="mt-2 text-sm leading-relaxed text-white/75 sm:text-base">
-            Sharp Projections compares our modeled spread, total, and moneyline prices to live market numbers,
-            then ranks matchups by edge strength. You get one board that shows where pricing is off, where line
-            movement confirms conviction, and where whale flow agrees with the projection.
+            Sharp Movement tracks opening-to-current spread, total, and moneyline changes across the board,
+            then ranks matchups by movement strength and limit expansion. You get one view of where pressure
+            is building and where the market is moving with conviction.
           </p>
           <h3 className="mt-5 text-xl font-semibold text-white">Why it is valuable</h3>
           <p className="mt-2 text-sm leading-relaxed text-white/75 sm:text-base">

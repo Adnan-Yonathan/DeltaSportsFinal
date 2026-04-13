@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
 import { Loader2 } from "lucide-react"
@@ -689,6 +690,15 @@ export function PricingPageClient() {
                 No payment due on free trial • Cancel anytime before Day 3 • Secure checkout via Stripe
               </div>
             ) : null}
+
+            <div className="mt-4 flex justify-center">
+              <Link
+                href="/market-projections"
+                className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-xs font-medium text-white/75 transition hover:border-emerald-300/40 hover:text-emerald-200"
+              >
+                Continue Free
+              </Link>
+            </div>
           </div>
         </div>
       </div>

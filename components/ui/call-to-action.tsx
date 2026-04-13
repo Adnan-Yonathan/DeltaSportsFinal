@@ -20,13 +20,13 @@ const featureCards: Array<CardData & { id: string }> = [
   {
     id: "sharp-projections",
     front: {
-      title: "Sharp Projections",
-      description: "Market-driven lines that show where the number is wrong.",
+      title: "Sharp Movement",
+      description: "Line movement and limit expansion in one board.",
       icon: <KnifeIcon />,
     },
     back: {
       description:
-        "Compare Delta's projections to live market lines and spot the biggest gaps in spreads, totals, and moneylines.",
+        "Track opening-to-current movement across spreads, totals, and moneylines to spot pressure before the board settles.",
       buttonText: "View Guide",
     },
   },
@@ -46,27 +46,14 @@ const featureCards: Array<CardData & { id: string }> = [
   {
     id: "whale-feed",
     front: {
-      title: "Whale Detector",
+      title: "Whale Feed",
       description: "Large-ticket market flow surfaced in real time.",
       icon: <WhaleIcon />,
     },
     back: {
       description:
         "Track high-notional tickets, check repeated game clusters, and validate moves before you execute.",
-      buttonText: "View Whale Detector",
-    },
-  },
-  {
-    id: "research-mode",
-    front: {
-      title: "Research Mode",
-      description: "Explain movement, validate a thesis, and study closes.",
-      icon: <BeakerIcon />,
-    },
-    back: {
-      description:
-        "Review closes, investigate movement, and backtest edges to build a repeatable process.",
-      buttonText: "View Guide",
+      buttonText: "View Whale Feed",
     },
   },
 ]
@@ -134,7 +121,6 @@ function GenericCardBack({
     "sharp-projections": "/tools/sharp-projections",
     "sharp-props": "/tools/sharp-props",
     "whale-feed": "/tools/whale-feed",
-    "research-mode": "/tools/research-mode",
   }
   const href = hrefById[id] ?? "/tools"
 
@@ -230,27 +216,3 @@ function WaterfallIcon() {
   )
 }
 
-function BeakerIcon() {
-  return (
-    <svg viewBox="0 0 64 64" className="h-10 w-10 text-white" fill="none">
-      <path
-        d="M24 10h16v6l-4 6v14.5c0 2.6 1.1 5.1 3 6.9l5 5.1c1.8 1.8.5 4.9-2 4.9H22c-2.6 0-3.8-3.1-2-4.9l5-5.1c1.9-1.9 3-4.3 3-6.9V22l-4-6v-6z"
-        fill="currentColor"
-        opacity="0.92"
-      />
-      <path
-        d="M22 46c6 3 14 3 20 0"
-        stroke="#0b1220"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M26 30h12"
-        stroke="#0b1220"
-        strokeWidth="3"
-        strokeLinecap="round"
-        opacity="0.8"
-      />
-    </svg>
-  )
-}

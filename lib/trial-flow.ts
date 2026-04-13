@@ -99,11 +99,11 @@ type ToolDetail = {
 }
 
 export const TOOL_DISPLAY_NAMES: Record<RecommendedToolKey, string> = {
-  'sharp-projections': 'Sharp Projections',
+  'sharp-projections': 'Sharp Movement',
   'sharp-props': 'Sharp Props',
   'whale-detector': 'Whale Feed',
   'insider-feed': 'Insider Feed',
-  'research-mode': 'Research Mode',
+  'research-mode': 'Insider Feed',
 }
 
 export const GOAL_DISPLAY_NAMES: Record<TrialGoalKey, string> = {
@@ -137,24 +137,24 @@ const GOAL_TO_MARKETS: Record<TrialGoalKey, string[]> = {
 const GOAL_TOOL_WEIGHTS: Record<TrialGoalKey, Array<[RecommendedToolKey, number]>> = {
   'beat-the-book': [
     ['sharp-projections', 5],
-    ['research-mode', 3],
+    ['insider-feed', 3],
     ['sharp-props', 2],
     ['whale-detector', 1],
   ],
   'find-sharp-lines': [
     ['sharp-projections', 5],
     ['whale-detector', 4],
-    ['research-mode', 2],
+    ['insider-feed', 2],
     ['sharp-props', 1],
   ],
   'track-whale-activity': [
     ['whale-detector', 5],
     ['sharp-props', 3],
     ['sharp-projections', 2],
-    ['research-mode', 1],
+    ['insider-feed', 2],
   ],
   'validate-picks': [
-    ['research-mode', 6],
+    ['insider-feed', 6],
     ['sharp-projections', 4],
     ['whale-detector', 2],
     ['sharp-props', 1],
@@ -164,7 +164,7 @@ const GOAL_TOOL_WEIGHTS: Record<TrialGoalKey, Array<[RecommendedToolKey, number]
 const EXPERIENCE_TOOL_WEIGHTS: Record<TrialExperience, Array<[RecommendedToolKey, number]>> = {
   'casual-fan': [
     ['sharp-projections', 1],
-    ['research-mode', 0.5],
+    ['whale-detector', 0.5],
   ],
   recreational: [
     ['sharp-projections', 1],
@@ -172,10 +172,10 @@ const EXPERIENCE_TOOL_WEIGHTS: Record<TrialExperience, Array<[RecommendedToolKey
   ],
   'serious-bettor': [
     ['sharp-projections', 1],
-    ['research-mode', 0.5],
+    ['insider-feed', 0.5],
   ],
   'sharp-pro': [
-    ['research-mode', 1],
+    ['insider-feed', 1],
     ['sharp-projections', 0.5],
   ],
 }
@@ -190,9 +190,9 @@ export const TRIAL_ACTIVATION_STEPS: Array<{
   {
     key: 'view-edges',
     title: 'View your first 3 sharp edges',
-    description: 'Open Sharp Projections and start with the highest-confidence board.',
+    description: 'Open Sharp Movement and start with the highest-confidence board.',
     href: '/market-projections',
-    cta: 'Open Sharp Projections',
+    cta: 'Open Sharp Movement',
   },
   {
     key: 'save-alert',
@@ -211,19 +211,19 @@ export const TRIAL_ACTIVATION_STEPS: Array<{
   {
     key: 'review-confirmation',
     title: 'Review one whale or line-move confirmation',
-    description: 'Cross-check a move with Research Mode and build the habit of validation.',
-    href: '/research/sharp-action',
-    cta: 'Open Research Mode',
+    description: 'Cross-check a move with Insider Feed and confirm where top wallets are positioned.',
+    href: '/polymarket-insider',
+    cta: 'Open Insider Feed',
   },
 ]
 
 export const RECOMMENDED_TOOL_DETAILS: Record<RecommendedToolKey, ToolDetail> = {
   'sharp-projections': {
-    title: 'Sharp Projections',
+    title: 'Sharp Movement',
     href: '/market-projections',
     screenshotSrc: '/sharpprojections.png',
     summary:
-      'Start with the board that ranks the cleanest gaps between Delta pricing and live markets.',
+      'Track opening-to-current movement and spot market shifts before books fully adjust.',
     statLabel: 'Board refresh',
     statValue: '15 min',
   },
@@ -253,12 +253,12 @@ export const RECOMMENDED_TOOL_DETAILS: Record<RecommendedToolKey, ToolDetail> = 
     statValue: '60–99',
   },
   'research-mode': {
-    title: 'Research Mode',
-    href: '/research/sharp-action',
-    screenshotSrc: '/research.png',
-    summary: 'Validate line movement, closes, and long-term CLV patterns before you scale up.',
-    statLabel: 'Lens',
-    statValue: '30-day',
+    title: 'Insider Feed',
+    href: '/polymarket-insider',
+    screenshotSrc: '/insiderfeed.png',
+    summary: 'Follow top-ROI wallet positioning and use it to validate market direction quickly.',
+    statLabel: 'Wallet signal',
+    statValue: 'Top ROI',
   },
 }
 
@@ -287,7 +287,7 @@ export const createDefaultTrialOnboardingDraft = (): TrialOnboardingDraft => {
     name: '',
     experienceLevel: null,
     goals: [],
-    prioritizedTools: ['sharp-projections', 'sharp-props', 'whale-detector', 'research-mode'],
+    prioritizedTools: ['whale-detector', 'sharp-props', 'insider-feed', 'sharp-projections'],
     betSize: roi.bet_size,
     betsPerDay: roi.bets_per_day,
     monthlyEv: roi.monthly_ev,
@@ -335,7 +335,7 @@ export const prioritizeTools = (
     ['sharp-projections', 0],
     ['sharp-props', 0],
     ['whale-detector', 0],
-    ['research-mode', 0],
+    ['insider-feed', 0],
   ])
 
   goalKeys.forEach((goal) => {
@@ -398,7 +398,7 @@ export const resolveRecommendedTool = (
   }
 
   if (profile?.primary_intent === 'track-whale-activity') return 'whale-detector'
-  if (profile?.primary_intent === 'validate-picks') return 'research-mode'
+  if (profile?.primary_intent === 'validate-picks') return 'insider-feed'
   if (profile?.primary_intent === 'find-sharp-lines') return 'sharp-projections'
   return 'sharp-projections'
 }

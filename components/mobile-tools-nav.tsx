@@ -10,10 +10,8 @@ import {
   ChevronDown,
   ExternalLink,
   Eye,
-  FlaskConical,
   MoreHorizontal,
   Percent,
-  Radar,
   X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -39,11 +37,11 @@ type MoreLink = {
 
 const MOBILE_TOOL_NAV_ITEMS: MobileToolNavItem[] = [
   {
-    key: 'sharp-projections',
-    label: 'Projections',
-    shortLabel: 'Proj',
-    href: '/market-projections',
-    icon: Radar,
+    key: 'whale-feed',
+    label: 'Whale Feed',
+    shortLabel: 'Whale',
+    href: '/sharp-detector',
+    icon: Activity,
   },
   {
     key: 'sharp-props',
@@ -60,21 +58,6 @@ const MOBILE_TOOL_NAV_ITEMS: MobileToolNavItem[] = [
     icon: Eye,
     match: (pathname) => pathname.startsWith('/polymarket-insider'),
   },
-  {
-    key: 'whale-detector',
-    label: 'Whale Detector',
-    shortLabel: 'Whales',
-    href: '/sharp-detector',
-    icon: Activity,
-  },
-  {
-    key: 'research-mode',
-    label: 'Research Mode',
-    shortLabel: 'Research',
-    href: '/research/sharp-action',
-    icon: FlaskConical,
-    match: (pathname) => pathname.startsWith('/research'),
-  },
 ]
 
 const MORE_SOCIAL_LINKS: MoreLink[] = [
@@ -89,11 +72,10 @@ const MORE_SOCIAL_LINKS: MoreLink[] = [
 ]
 
 const MORE_GUIDE_LINKS: MoreLink[] = [
-  { key: 'guide-sharp-projections', label: 'Sharp Projections', href: '/tools/sharp-projections' },
+  { key: 'guide-sharp-projections', label: 'Sharp Movement', href: '/tools/sharp-projections' },
   { key: 'guide-sharp-props', label: 'Sharp Props', href: '/tools/sharp-props' },
-  { key: 'guide-whale-feed', label: 'Whale Detector', href: '/tools/whale-feed' },
+  { key: 'guide-whale-feed', label: 'Whale Feed', href: '/tools/whale-feed' },
   { key: 'guide-insider-feed', label: 'Insider Feed', href: '/tools/insider-feed' },
-  { key: 'guide-research-mode', label: 'Research Mode', href: '/tools/research-mode' },
 ]
 
 const KALSHI_AFFILIATE_URL =
@@ -265,15 +247,15 @@ export function MobileMoreSheet({
 
           <button
             type="button"
-            onClick={() => handleInternalNavigation('/odds-screen')}
+            onClick={() => handleInternalNavigation('/market-projections')}
             className={cn(
               'flex w-full items-center rounded-xl border px-3 py-2 text-left text-sm transition',
-              isRouteActive('/odds-screen')
+              isRouteActive('/market-projections')
                 ? 'border-emerald-300/45 bg-emerald-500/15 text-emerald-100'
                 : 'border-white/10 bg-black/40 text-white/85 hover:border-emerald-300/35 hover:bg-emerald-500/10 hover:text-emerald-100'
             )}
           >
-            Odds Screen
+            Sharp Movement
           </button>
 
           <button
@@ -345,7 +327,7 @@ export default function MobileToolsNav() {
   return (
     <div className="fixed inset-x-0 bottom-0 z-[45] border-t border-white/10 bg-black/95 backdrop-blur-xl md:hidden">
       <nav
-        className="grid grid-cols-5 gap-0.5 px-1 pt-1"
+        className="grid grid-cols-3 gap-0.5 px-1 pt-1"
         style={{ paddingBottom: 'calc(0.35rem + env(safe-area-inset-bottom))' }}
       >
         {MOBILE_TOOL_NAV_ITEMS.map((item) => {

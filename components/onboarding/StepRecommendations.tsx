@@ -35,10 +35,10 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
   const base: RecommendedFeature[] = [
     {
       id: "sharp-projections",
-      title: "Sharp Projections",
-      description: "Scan today's board for mispriced spreads/totals/moneylines.",
+      title: "Sharp Movement",
+      description: "Track opening-to-current movement and find market shifts before they settle.",
       href: "/market-projections",
-      tags: ["Projections", "CLV"],
+      tags: ["Movement", "Timing"],
     },
     {
       id: "sharp-props",
@@ -49,17 +49,10 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
     },
     {
       id: "whale-feed",
-      title: "Whale Detector",
+      title: "Whale Feed",
       description: "Track large-ticket flow and clustering in real time.",
       href: "/sharp-detector",
       tags: ["Whales", "Alerts"],
-    },
-    {
-      id: "research-mode",
-      title: "Research Mode",
-      description: "Explain movement, validate a thesis, and study closes.",
-      href: "/research/sharp-action",
-      tags: ["Research", "Movement"],
     },
     {
       id: "live-scores",
@@ -78,18 +71,18 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
   ]
 
   const boost: Record<string, string[]> = {
-    "projection-models": ["sharp-projections", "research-mode", "live-scores"],
-    "track-profitable-bettors": ["whale-feed", "research-mode", "live-scores"],
-    "find-whales": ["whale-feed", "live-scores", "research-mode"],
-    "historical-trends": ["research-mode", "sharp-projections", "live-scores"],
+    "projection-models": ["sharp-projections", "live-scores"],
+    "track-profitable-bettors": ["whale-feed", "live-scores"],
+    "find-whales": ["whale-feed", "live-scores"],
+    "historical-trends": ["sharp-projections", "live-scores"],
   }
 
   const boosts = boost[primaryIntent] ?? []
 
   const goalBoosts: string[] = []
-  if (goals.includes("learn-research")) goalBoosts.push("research-mode", "delta-home")
+  if (goals.includes("learn-research")) goalBoosts.push("delta-home")
   if (goals.includes("tail-sharp-action")) goalBoosts.push("whale-feed", "live-scores")
-  if (goals.includes("become-profitable")) goalBoosts.push("sharp-projections", "research-mode")
+  if (goals.includes("become-profitable")) goalBoosts.push("sharp-projections")
   if (goals.includes("supercharge")) goalBoosts.push("live-scores", "whale-feed")
 
   if (betFocus === "player-props") goalBoosts.push("sharp-props")

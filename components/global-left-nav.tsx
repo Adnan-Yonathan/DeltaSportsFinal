@@ -11,13 +11,11 @@ import {
   Calculator,
   ChevronDown,
   Eye,
-  FlaskConical,
   HandCoins,
   LogOut,
   Newspaper,
   Percent,
   Radar,
-  Rows3,
   Share2,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -44,12 +42,10 @@ type NavItem = {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: "sharp-projections", label: "Sharp Projections", href: "/market-projections", icon: Radar },
-  { key: "sharp-props", label: "Sharp Props", href: "/sharp-props", icon: Percent },
-  { key: "whale-detector", label: "Whale Detector", href: "/sharp-detector", icon: Activity },
+  { key: "whale-feed", label: "Whale Feed", href: "/sharp-detector", icon: Activity },
   { key: "polymarket-insider", label: "Insider Feed", href: "/polymarket-insider", icon: Eye },
-  { key: "research", label: "Research", href: "/research/sharp-action", icon: FlaskConical },
-  { key: "odds-screen", label: "Odds Screen", href: "/odds-screen", icon: Rows3 },
+  { key: "sharp-props", label: "Sharp Props", href: "/sharp-props", icon: Percent },
+  { key: "sharp-projections", label: "Sharp Movement", href: "/market-projections", icon: Radar },
   { key: "affiliate", label: "Affiliate", href: "/affiliate", icon: HandCoins },
   { key: "calculators", label: "Calculators", href: "/calculators", icon: Calculator },
   {
@@ -57,11 +53,10 @@ const NAV_ITEMS: NavItem[] = [
     label: "Guides",
     icon: BookOpen,
     children: [
-      { key: "guide-sharp-projections", label: "Sharp Projections", href: "/tools/sharp-projections" },
+      { key: "guide-sharp-projections", label: "Sharp Movement", href: "/tools/sharp-projections" },
       { key: "guide-sharp-props", label: "Sharp Props", href: "/tools/sharp-props" },
-      { key: "guide-whale-feed", label: "Whale Detector", href: "/tools/whale-feed" },
+      { key: "guide-whale-feed", label: "Whale Feed", href: "/tools/whale-feed" },
       { key: "guide-insider-feed", label: "Insider Feed", href: "/tools/insider-feed" },
-      { key: "guide-research-mode", label: "Research Mode", href: "/tools/research-mode" },
     ],
   },
   {

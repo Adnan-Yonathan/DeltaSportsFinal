@@ -1,15 +1,17 @@
 import type { Metadata } from "next"
 import MarketProjectionsClient from "./market-projections-client"
 import MobileToolsNav from "@/components/mobile-tools-nav"
-import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
-import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 export const metadata: Metadata = {
-  title: "Sharp Projections | AI Market Edge Finder | Delta Sports",
+  title: "Sharp Movement | Pinnacle Line Movement Tracker | Delta Sports",
   description:
-    "AI-driven market projections that surface edges between fair value and live lines. Sort by confidence, spot mispriced numbers, and act before the market corrects.",
+    "Track Pinnacle line movement, limit expansion, and quote pressure across spreads, totals, and moneylines. Rank markets by movement strength and react before the board settles.",
+  robots: {
+    index: true,
+    follow: true,
+  },
   alternates: {
     canonical: "https://deltasports.app/market-projections",
   },
@@ -77,20 +79,7 @@ const loadCacheForSport = async (
   }
 }
 
-export default async function MarketProjectionsPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
-}) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasProjectionAccess = membership.hasProjectionAccess
-  const previewMode = !hasProjectionAccess
-
+export default async function MarketProjectionsPage() {
   const resolvedSport = "all"
 
   const serviceClient = createServiceClient()
@@ -122,7 +111,7 @@ export default async function MarketProjectionsPage({
     }
   } catch (error) {
     console.error("[market-projections] failed to load cache", error)
-    errorMessage = "Failed to load cached projections."
+    errorMessage = "Failed to load cached sharp movement."
   }
 
   return (
@@ -136,9 +125,9 @@ export default async function MarketProjectionsPage({
               hasCache={hasCache}
               errorMessage={errorMessage}
               sport={resolvedSport}
-              isLocked={!hasProjectionAccess}
-              tier={membership.tier}
-              previewMode={previewMode}
+              isLocked={false}
+              tier={null}
+              previewMode={false}
             />
           </div>
         </div>

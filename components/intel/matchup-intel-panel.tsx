@@ -105,7 +105,7 @@ export const buildMatchupIntelKey = (params: {
   ).slice(0, 16)}`
 
 const sourceLabelMap: Record<MatchupPanelContext["source"], string> = {
-  "sharp-projections": "Sharp Projections",
+  "sharp-projections": "Sharp Movement",
   "research-mode": "Research Mode",
 }
 

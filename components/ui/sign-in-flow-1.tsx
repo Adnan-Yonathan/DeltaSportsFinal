@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { SquareArrowUp } from "lucide-react";
 
 import * as THREE from "three";
 
@@ -715,6 +716,14 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                       <Link href="/auth/login" className="underline text-white/70 hover:text-white transition-colors">
                         Sign in
                       </Link>
+                    </p>
+                    <p className="mt-2 text-xs text-white/60 sm:hidden">
+                      On iPhone, tap{" "}
+                      <span className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 text-white/75">
+                        <SquareArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                        Share
+                      </span>{" "}
+                      in Safari, then choose Add to Home Screen to use Delta like an app.
                     </p>
                   </div>
                 </div>

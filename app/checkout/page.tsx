@@ -46,23 +46,19 @@ const PLANS: PlanOption[] = [
 
 const TIER_FEATURES = {
   sharp: [
-    'Sharp Projections (spreads, totals, moneylines)',
-    'Sharp Props (player prop edges)',
+    'Sharp Movement',
+    'Whale Feed',
   ],
   syndicate: [
-    'Sharp Projections (spreads, totals, moneylines)',
-    'Sharp Props (player prop edges)',
-    'Whale Detector (follow market-moving action)',
-    'Research Mode (backtesting, trends)',
-    'Insider Feed (top Polymarket wallet positions)',
+    'Sharp Props',
+    'Insider Feed',
   ],
 }
 
 const MOBILE_MEMBERSHIP_TOOLS = [
-  { key: 'projections', label: 'Sharp Projections' },
-  { key: 'props', label: 'Sharp Props' },
+  { key: 'movement', label: 'Sharp Movement' },
   { key: 'whale', label: 'Whale Feed' },
-  { key: 'research', label: 'Research Mode' },
+  { key: 'props', label: 'Sharp Props' },
   { key: 'insider', label: 'Insider Feed' },
 ] as const
 
@@ -331,7 +327,7 @@ function MobileCheckoutLayout({
               <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4">
                 <div className="grid grid-cols-2 gap-2">
                   {MOBILE_MEMBERSHIP_TOOLS.map((tool) => {
-                    const isSyndicateOnly = tool.key === 'whale' || tool.key === 'research' || tool.key === 'insider'
+                    const isSyndicateOnly = tool.key === 'props' || tool.key === 'insider'
                     const isEnabled =
                       selectedTier === 'syndicate' ||
                       !isSyndicateOnly
@@ -463,7 +459,7 @@ function DesktopCheckoutLayout({
                     ) : null}
                     <div className="font-semibold capitalize">{tier}</div>
                     <div className="mt-1 text-xs text-white/50">
-                      {tier === 'syndicate' ? 'Full access + whale feed' : 'Projections + props'}
+                      {tier === 'syndicate' ? 'Sharp props + insider feed' : 'Sharp movement + whale feed'}
                     </div>
                   </button>
                 ))}

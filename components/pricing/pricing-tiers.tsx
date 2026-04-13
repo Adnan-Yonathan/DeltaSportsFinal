@@ -10,7 +10,7 @@ export const PRICING_TIERS: PricingTier[] = [
       monthly: 59,
       yearly: 249,
     },
-    description: "Sharp projections + sharp props.",
+    description: "Sharp movement + whale feed.",
     planKeyWeekly: "sharp_weekly",
     planKeyMonthly: "sharp_monthly",
     planKeyYearly: "sharp_annual",
@@ -21,18 +21,18 @@ export const PRICING_TIERS: PricingTier[] = [
     ),
     features: [
       {
-        name: "Sharp Projections",
-        description: "Full spreads, totals, and moneylines.",
+        name: "Sharp Movement",
+        description: "Real-time market-moving action signals.",
+        included: true,
+      },
+      {
+        name: "Whale Feed",
+        description: "Follow large market-moving positions.",
         included: true,
       },
       {
         name: "Sharp Props",
-        description: "Player prop edges and scores.",
-        included: true,
-      },
-      {
-        name: "Research Tools",
-        description: "Upgrade to Syndicate for research mode.",
+        description: "Upgrade to Syndicate for sharp props.",
         included: false,
       },
       {
@@ -50,7 +50,7 @@ export const PRICING_TIERS: PricingTier[] = [
       monthly: 79,
       yearly: 299,
     },
-    description: "Research mode and advanced workflows.",
+    description: "Sharp props + insider feed.",
     highlight: true,
     badge: "Most Popular",
     planKeyWeekly: "syndicate_weekly",
@@ -64,13 +64,8 @@ export const PRICING_TIERS: PricingTier[] = [
     ),
     features: [
       {
-        name: "Everything in Sharp",
-        description: "Sharp projections and sharp props.",
-        included: true,
-      },
-      {
-        name: "Research Mode",
-        description: "Sharp action, trends, backtesting.",
+        name: "Sharp Props",
+        description: "Player prop edges and score-driven value.",
         included: true,
       },
       {

@@ -32,17 +32,16 @@ interface PlanOption {
   planKey: string
   price: number
   period: string
-  daily: number
   savings?: number
 }
 
 const PLANS: PlanOption[] = [
-  { tier: 'syndicate', billing: 'weekly', planKey: 'syndicate_weekly', price: 24.99, period: 'week', daily: 3.57 },
-  { tier: 'syndicate', billing: 'monthly', planKey: 'syndicate_monthly', price: 79, period: 'month', daily: 2.63, savings: 20 },
-  { tier: 'syndicate', billing: 'annual', planKey: 'syndicate_annual', price: 299, period: 'year', daily: 0.82, savings: 70 },
-  { tier: 'sharp', billing: 'weekly', planKey: 'sharp_weekly', price: 19.99, period: 'week', daily: 2.86 },
-  { tier: 'sharp', billing: 'monthly', planKey: 'sharp_monthly', price: 59, period: 'month', daily: 1.97, savings: 15 },
-  { tier: 'sharp', billing: 'annual', planKey: 'sharp_annual', price: 249, period: 'year', daily: 0.68, savings: 70 },
+  { tier: 'syndicate', billing: 'weekly', planKey: 'syndicate_weekly', price: 24.99, period: 'week' },
+  { tier: 'syndicate', billing: 'monthly', planKey: 'syndicate_monthly', price: 79, period: 'month', savings: 20 },
+  { tier: 'syndicate', billing: 'annual', planKey: 'syndicate_annual', price: 299, period: 'year', savings: 70 },
+  { tier: 'sharp', billing: 'weekly', planKey: 'sharp_weekly', price: 19.99, period: 'week' },
+  { tier: 'sharp', billing: 'monthly', planKey: 'sharp_monthly', price: 59, period: 'month', savings: 15 },
+  { tier: 'sharp', billing: 'annual', planKey: 'sharp_annual', price: 249, period: 'year', savings: 70 },
 ]
 
 const TIER_FEATURES = {
@@ -67,7 +66,13 @@ const MOBILE_MEMBERSHIP_TOOLS = [
   { key: 'insider', label: 'Insider Feed' },
 ] as const
 
-const formatDailyPrice = (value: number) => `$${value.toFixed(2)}/day`
+const getMonthlyEquivalentPrice = (plan: PlanOption) => {
+  if (plan.billing === 'annual') return plan.price / 12
+  if (plan.billing === 'monthly') return plan.price
+  return (plan.price * 52) / 12
+}
+
+const formatMonthlyPrice = (plan: PlanOption) => `$${getMonthlyEquivalentPrice(plan).toFixed(2)}/mo`
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -254,7 +259,7 @@ function MobileCheckoutLayout({
             </p>
             {selectedPlan ? (
               <p className="mt-1 text-sm text-white/55">
-                Then just {formatDailyPrice(selectedPlan.daily)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
+                Then just {formatMonthlyPrice(selectedPlan)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
               </p>
             ) : null}
           </div>
@@ -308,10 +313,10 @@ function MobileCheckoutLayout({
                         {plan.billing}
                       </div>
                       <div className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">
-                        ${plan.daily.toFixed(2)}
+                        ${getMonthlyEquivalentPrice(plan).toFixed(2)}
                       </div>
                       <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300">
-                        Per Day
+                        Per Month
                       </div>
                       {isAnnual ? (
                         <div className="mt-2 inline-flex rounded-full bg-emerald-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-black">
@@ -428,7 +433,7 @@ function DesktopCheckoutLayout({
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Get access to the sharp money</h1>
           <p className="mt-3 text-lg text-white/60">
             {selectedPlan
-              ? `Start your 7-day trial for free, then ${formatDailyPrice(selectedPlan.daily)} billed ${selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.`
+              ? `Start your 7-day trial for free, then ${formatMonthlyPrice(selectedPlan)} billed ${selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.`
               : 'Start your 7-day trial for free.'}
           </p>
         </div>
@@ -496,8 +501,8 @@ function DesktopCheckoutLayout({
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="text-3xl font-bold">${selectedPlan.daily.toFixed(2)}</span>
-                    <span className="text-white/50">/day</span>
+                    <span className="text-3xl font-bold">${getMonthlyEquivalentPrice(selectedPlan).toFixed(2)}</span>
+                    <span className="text-white/50">/mo</span>
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-white/50">

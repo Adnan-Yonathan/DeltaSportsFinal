@@ -9,8 +9,10 @@ import {
   BellRing,
   CheckCircle2,
   Clock3,
+  MoreVertical,
   LineChart,
   Loader2,
+  SquareArrowUp,
   Sparkles,
   Target,
   X,
@@ -346,6 +348,40 @@ export default function TrialActivationHome({
               Checklist complete. Your next visit to `/` will send you back to your last active tool.
             </div>
           ) : null}
+        </section>
+
+        <section className="mt-5 rounded-[1.75rem] border border-cyan-300/20 bg-cyan-400/5 p-4 sm:p-6">
+          <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/75">Post-trial step</div>
+          <h2 className="mt-2 text-2xl font-bold text-white">Add Delta to your home screen</h2>
+          <p className="mt-2 text-sm text-white/70">
+            Make Delta open like an app for faster access during your betting workflow.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-[1.25rem] border border-white/10 bg-black/35 p-4">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/55">iPhone (Safari)</div>
+              <div className="mt-2 text-sm text-white/80">
+                Tap{' '}
+                <span className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 text-white/85">
+                  <SquareArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                  Share
+                </span>{' '}
+                then tap <span className="font-semibold text-white">Add to Home Screen</span>.
+              </div>
+            </div>
+
+            <div className="rounded-[1.25rem] border border-white/10 bg-black/35 p-4">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/55">Android (Chrome)</div>
+              <div className="mt-2 text-sm text-white/80">
+                Tap the{' '}
+                <span className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 text-white/85">
+                  <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                  3-dot menu
+                </span>{' '}
+                at the top right, then tap <span className="font-semibold text-white">Add to Home screen</span>.
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="mt-5 rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-4 sm:p-6">

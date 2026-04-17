@@ -39,11 +39,11 @@ const getPeriodPrice = (tier: PricingTier, billing: BillingPeriod) =>
       ? tier.price.monthly
       : tier.price.weekly
 
-const getMonthlyEquivalentPrice = (tier: PricingTier, billing: BillingPeriod) => {
+const getDailyEquivalentPrice = (tier: PricingTier, billing: BillingPeriod) => {
   const periodPrice = getPeriodPrice(tier, billing)
-  if (billing === "annual") return periodPrice / 12
-  if (billing === "monthly") return periodPrice
-  return (periodPrice * 52) / 12
+  if (billing === "annual") return periodPrice / 365
+  if (billing === "monthly") return periodPrice / 30
+  return periodPrice / 7
 }
 
 const getAnnualizedCost = (tier: PricingTier, billing: BillingPeriod) => {
@@ -319,7 +319,7 @@ export function PricingPageClient() {
               {PRICING_TIERS.map((tier) => {
                 const isSelected = tier.tierKey === selectedTierKey
                 const periodPrice = getPeriodPrice(tier, billingPeriod)
-                const monthlyEquivalentPrice = getMonthlyEquivalentPrice(tier, billingPeriod)
+                const dailyEquivalentPrice = getDailyEquivalentPrice(tier, billingPeriod)
                 const savings = getSavingsVsWeekly(tier, billingPeriod)
                 const savingsPercent = formatSavingsPercent(savings.savedPercent)
 
@@ -367,8 +367,7 @@ export function PricingPageClient() {
                       </div>
 
                       <div className="mt-1 text-[11px] text-white/60">
-                        {billingPeriod === "monthly" ? "" : "~ "}
-                        {formatUsd(monthlyEquivalentPrice)}/mo
+                        {formatUsd(dailyEquivalentPrice)}/day
                       </div>
 
                       {billingPeriod === "annual" && savings.savedAmount > 0 ? (
@@ -523,7 +522,7 @@ export function PricingPageClient() {
             <div className="mt-8 grid grid-cols-2 gap-4">
               {PRICING_TIERS.map((tier) => {
                 const periodPrice = getPeriodPrice(tier, billingPeriod)
-                const monthlyEquivalentPrice = getMonthlyEquivalentPrice(tier, billingPeriod)
+                const dailyEquivalentPrice = getDailyEquivalentPrice(tier, billingPeriod)
                 const savings = getSavingsVsWeekly(tier, billingPeriod)
                 const savingsPercent = formatSavingsPercent(savings.savedPercent)
                 const planKey = getPlanKey(tier, billingPeriod)
@@ -592,9 +591,9 @@ export function PricingPageClient() {
                     <div className="mt-8">
                       <div className="flex items-end gap-1">
                         <span className="text-5xl font-bold tracking-tight text-white">
-                          {formatUsd(monthlyEquivalentPrice)}
+                          {formatUsd(dailyEquivalentPrice)}
                         </span>
-                        <span className="mb-1.5 text-sm text-white/50">/mo</span>
+                        <span className="mb-1.5 text-sm text-white/50">/day</span>
                       </div>
                       <div className="mt-1 text-sm text-white/45">
                         billed {formatUsd(periodPrice)}/{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}

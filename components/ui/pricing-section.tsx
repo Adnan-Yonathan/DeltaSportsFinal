@@ -24,7 +24,7 @@ const formatUsd = (amount: number) =>
     maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
   }).format(amount)
 
-const getMonthlyEquivalent = (tier: PricingTier, billingPeriod: 'weekly' | 'monthly' | 'annual') => {
+const getDailyEquivalent = (tier: PricingTier, billingPeriod: 'weekly' | 'monthly' | 'annual') => {
   const periodPrice =
     billingPeriod === "annual"
       ? tier.price.yearly
@@ -32,9 +32,9 @@ const getMonthlyEquivalent = (tier: PricingTier, billingPeriod: 'weekly' | 'mont
         ? tier.price.monthly
         : tier.price.weekly
 
-  if (billingPeriod === "annual") return periodPrice / 12
-  if (billingPeriod === "monthly") return periodPrice
-  return (periodPrice * 52) / 12
+  if (billingPeriod === "annual") return periodPrice / 365
+  if (billingPeriod === "monthly") return periodPrice / 30
+  return periodPrice / 7
 }
 
 const getAnnualizedCost = (tier: PricingTier, billingPeriod: 'weekly' | 'monthly' | 'annual') => {
@@ -405,7 +405,7 @@ export function PricingSection({
                               : billingPeriod === "monthly"
                                 ? tier.price.monthly
                                 : tier.price.weekly
-                          const monthlyEquivalent = getMonthlyEquivalent(tier, billingPeriod)
+                          const dailyEquivalent = getDailyEquivalent(tier, billingPeriod)
                           const billingLabel =
                             billingPeriod === "annual"
                               ? "year"
@@ -419,10 +419,10 @@ export function PricingSection({
                             <>
                               <div className="flex items-baseline gap-1.5">
                                 <span className="text-base sm:text-2xl md:text-3xl font-bold">
-                                  {isFree ? "Free" : formatUsd(monthlyEquivalent)}
+                                  {isFree ? "Free" : formatUsd(dailyEquivalent)}
                                 </span>
                                 {!isFree && (
-                                  <span className="text-xs text-slate-200/70">/mo</span>
+                                  <span className="text-xs text-slate-200/70">/day</span>
                                 )}
                               </div>
                               {!isFree && (

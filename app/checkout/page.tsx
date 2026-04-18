@@ -68,7 +68,14 @@ const getMonthlyEquivalentPrice = (plan: PlanOption) => {
   return (plan.price * 52) / 12
 }
 
+const getDailyEquivalentPrice = (plan: PlanOption) => {
+  if (plan.billing === 'annual') return plan.price / 365
+  if (plan.billing === 'monthly') return plan.price / 30
+  return plan.price / 7
+}
+
 const formatMonthlyPrice = (plan: PlanOption) => `$${getMonthlyEquivalentPrice(plan).toFixed(2)}/mo`
+const formatDailyPrice = (plan: PlanOption) => `$${getDailyEquivalentPrice(plan).toFixed(2)}/day`
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -255,7 +262,7 @@ function MobileCheckoutLayout({
             </p>
             {selectedPlan ? (
               <p className="mt-1 text-sm text-white/55">
-                Then just {formatMonthlyPrice(selectedPlan)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
+                Then just {formatDailyPrice(selectedPlan)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
               </p>
             ) : null}
           </div>
@@ -309,10 +316,13 @@ function MobileCheckoutLayout({
                         {plan.billing}
                       </div>
                       <div className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">
-                        ${getMonthlyEquivalentPrice(plan).toFixed(2)}
+                        ${getDailyEquivalentPrice(plan).toFixed(2)}
                       </div>
                       <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300">
-                        Per Month
+                        Per Day
+                      </div>
+                      <div className="mt-2 text-[11px] text-white/48">
+                        Billed ${plan.price}/{plan.period}
                       </div>
                       {isAnnual ? (
                         <div className="mt-2 inline-flex rounded-full bg-emerald-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-black">

@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { CORE_TOOLS } from '@/lib/core-tools'
 import { SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
 import { COMPETITORS } from '@/lib/blog/competitor-data'
+import { getPublishedCalculators } from '@/lib/calculators/registry'
 
 const BASE_URL = 'https://deltasports.app'
 
@@ -32,7 +33,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const guideRoutes = CORE_TOOLS.map((tool) => tool.guideRoute)
   const insightRoutes = SEO_BLOG_TOPICS.map((topic) => `/blog/insights/${topic.slug}`)
   const competitorRoutes = COMPETITORS.map((c) => `/vs/${c.slug}`)
-  const entries: MetadataRoute.Sitemap = [...PUBLIC_ROUTES, ...guideRoutes, ...insightRoutes, ...competitorRoutes].map((route) => ({
+  const calculatorRoutes = getPublishedCalculators().map((c) => `/calculators/${c.slug}`)
+  const entries: MetadataRoute.Sitemap = [...PUBLIC_ROUTES, ...guideRoutes, ...insightRoutes, ...competitorRoutes, ...calculatorRoutes].map((route) => ({
     url: `${BASE_URL}${route}`,
     lastModified,
   }))

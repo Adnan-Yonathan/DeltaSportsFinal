@@ -6,6 +6,8 @@ export const DEFAULT_RECOMMENDED_PLAN = 'syndicate_annual'
 export const TRIAL_ONBOARDING_STORAGE_KEY = 'delta_trial_onboarding_v2'
 export const ROI_PLAN_COST = 79
 export const ROI_BASELINE_EDGE = 0.0262
+export const DEFAULT_TRIAL_EXPERIENCE: TrialExperience = 'recreational'
+export const DEFAULT_TRIAL_GOALS: TrialGoalKey[] = ['find-sharp-lines']
 
 export type TrialGoalKey =
   | 'beat-the-book'
@@ -285,9 +287,9 @@ export const createDefaultTrialOnboardingDraft = (): TrialOnboardingDraft => {
   const roi = calculateRoiSnapshot(100, 1)
   return {
     name: '',
-    experienceLevel: null,
-    goals: [],
-    prioritizedTools: ['whale-detector', 'sharp-props', 'insider-feed', 'sharp-projections'],
+    experienceLevel: DEFAULT_TRIAL_EXPERIENCE,
+    goals: DEFAULT_TRIAL_GOALS,
+    prioritizedTools: prioritizeTools(DEFAULT_TRIAL_GOALS, DEFAULT_TRIAL_EXPERIENCE),
     betSize: roi.bet_size,
     betsPerDay: roi.bets_per_day,
     monthlyEv: roi.monthly_ev,

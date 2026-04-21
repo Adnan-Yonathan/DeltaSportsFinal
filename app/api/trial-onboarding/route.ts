@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types'
 import {
+  DEFAULT_TRIAL_EXPERIENCE,
+  DEFAULT_TRIAL_GOALS,
   DEFAULT_RECOMMENDED_PLAN,
   PRECHECKOUT_ONBOARDING_COOKIE,
   PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED,
@@ -40,9 +42,12 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as TrialOnboardingRequest
   const name = typeof body.name === 'string' ? body.name.trim() : ''
-  const goals = Array.isArray(body.goals) ? body.goals.filter(isTrialGoalKey) : []
+  const goals = Array.isArray(body.goals) ? body.goals.filter(isTrialGoalKey) : DEFAULT_TRIAL_GOALS
+  const experienceLevel = isTrialExperience(body.experienceLevel)
+    ? body.experienceLevel
+    : DEFAULT_TRIAL_EXPERIENCE
 
-  if (!name || !isTrialExperience(body.experienceLevel) || goals.length === 0) {
+  if (!name || goals.length === 0) {
     return NextResponse.json({ error: 'Invalid onboarding payload' }, { status: 400 })
   }
 
@@ -52,7 +57,7 @@ export async function POST(request: Request) {
 
   const onboardingProfile = buildTrialOnboardingProfile({
     name,
-    experienceLevel: body.experienceLevel,
+    experienceLevel,
     goals,
     betSize: body.betSize,
     betsPerDay: body.betsPerDay,

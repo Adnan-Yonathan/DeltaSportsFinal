@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
 import {
+  isNflDraftKalshiMarket,
+  resolveKalshiDraftEventDate,
+  resolveNflDraftKalshiSport,
+} from '../lib/services/kalshi-draft'
+import {
   isNflDraftPolymarketMarket,
   resolveNflDraftSportKeyFromPolymarketEvent,
 } from '../lib/services/polymarket-draft'
@@ -45,5 +50,20 @@ assert.equal(
   true
 )
 assert.equal(isNflDraftPolymarketMarket('nfl-chiefs-broncos-2026-10-01'), false)
+
+assert.equal(
+  isNflDraftKalshiMarket('KXNFLDRAFT-FIRSTPICK', '2026 NFL Draft: First overall pick'),
+  true
+)
+assert.equal(
+  isNflDraftKalshiMarket('KXNFLGAME-26SEP14DALPHI', 'Cowboys vs Eagles'),
+  false
+)
+assert.equal(resolveNflDraftKalshiSport('KXNFLDRAFT-FIRSTPICK'), 'NFL')
+assert.equal(
+  resolveKalshiDraftEventDate('2026-04-23T23:00:00Z', '2026-04-24T00:00:00Z'),
+  '2026-04-23T23:00:00.000Z'
+)
+assert.equal(resolveKalshiDraftEventDate(undefined, null), undefined)
 
 console.log('nfl-draft-feed-classification tests passed')

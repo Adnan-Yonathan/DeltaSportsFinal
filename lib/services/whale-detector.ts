@@ -4,6 +4,11 @@ import { fetchOdds } from '@/lib/api/odds-api'
 import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import type { Bookmaker, OddsGame, OddsOutcome } from '@/lib/types/odds'
+import {
+  isNflDraftKalshiMarket,
+  resolveKalshiDraftEventDate,
+  resolveNflDraftKalshiSport,
+} from './kalshi-draft'
 import { isNflDraftPolymarketMarket } from './polymarket-draft'
 
 const KALSHI_BASE = KALSHI_BASE_CANDIDATES[0] ?? 'https://api.elections.kalshi.com/trade-api/v2'
@@ -24,6 +29,8 @@ const POLYMARKET_PAGE_LIMIT = 1000
 const POLYMARKET_MAX_PAGES = 8
 const POLYMARKET_DRAFT_MARKET_LIMIT = 40
 const POLYMARKET_DRAFT_TRADES_PER_MARKET = 80
+const KALSHI_DRAFT_MARKET_LIMIT = 200
+const KALSHI_DRAFT_TRADES_PER_MARKET = 200
 const SOURCE_BALANCE_RATIO = 0.2
 const ENABLE_WHALE_STRENGTH_ENRICHMENT = false
 
@@ -487,10 +494,22 @@ const parseKalshiDate = (ticker: string) => {
 }
 
 const resolveKalshiSport = (ticker: string) => {
+  const draftSport = resolveNflDraftKalshiSport(ticker)
+  if (draftSport) return draftSport
   const key = Object.keys(KALSHI_SPORT_LABELS).find((prefix) =>
     ticker.startsWith(prefix)
   )
   return key ? KALSHI_SPORT_LABELS[key] : 'Sports'
+}
+
+const resolveKalshiEventDate = (
+  ticker: string,
+  ...dateCandidates: Array<string | null | undefined>
+) => {
+  return (
+    resolveKalshiDraftEventDate(...dateCandidates) ??
+    parseKalshiDate(ticker)
+  )
 }
 
 const parsePolymarketSport = (slug?: string) => {
@@ -818,6 +837,107 @@ const fetchKalshiTrades = async (
   return whales.filter(Boolean) as WhaleTrade[]
 }
 
+const fetchNflDraftKalshiTrades = async (
+  minNotional: number,
+  since?: string | null
+): Promise<WhaleTrade[]> => {
+  const searches = ['nfl draft', 'pro football draft']
+  const marketsByTicker = new Map<
+    string,
+    {
+      ticker: string
+      title: string
+      yes: string
+      no: string
+      expectedExpirationTime?: string
+      expirationTime?: string
+      closeTime?: string
+    }
+  >()
+
+  for (const search of searches) {
+    const url = new URL(`${KALSHI_BASE}/markets`)
+    url.searchParams.set('limit', String(KALSHI_DRAFT_MARKET_LIMIT))
+    url.searchParams.set('status', 'open')
+    url.searchParams.set('search', search)
+
+    const res = await fetchKalshiWithFallback(url.toString(), { cache: 'no-store' })
+    if (!res || !res.ok) continue
+
+    const data = (await res.json()) as KalshiMarketsResponse
+    const markets = Array.isArray(data.markets) ? data.markets : []
+    for (const market of markets) {
+      const ticker = String(market.ticker ?? '').trim()
+      if (!ticker) continue
+      const title = String(market.title ?? '').trim()
+      const yes = String(market.yes_sub_title ?? market.subtitle ?? 'Yes').trim() || 'Yes'
+      const no = String(market.no_sub_title ?? 'No').trim() || 'No'
+      if (!isNflDraftKalshiMarket(ticker, title, yes, no)) continue
+      marketsByTicker.set(ticker, {
+        ticker,
+        title: title || ticker,
+        yes,
+        no,
+        expectedExpirationTime: market.expected_expiration_time,
+        expirationTime: market.expiration_time,
+        closeTime: market.close_time,
+      })
+    }
+  }
+
+  if (marketsByTicker.size === 0) return []
+
+  const deduped = new Map<string, WhaleTrade>()
+  for (const market of marketsByTicker.values()) {
+    const url = new URL(`${KALSHI_BASE}/markets/trades`)
+    url.searchParams.set('ticker', market.ticker)
+    url.searchParams.set('limit', String(KALSHI_DRAFT_TRADES_PER_MARKET))
+    if (since) {
+      url.searchParams.set('min_ts', since)
+    }
+
+    const res = await fetchKalshiWithFallback(url.toString(), { cache: 'no-store' })
+    if (!res || !res.ok) continue
+
+    const data = (await res.json()) as KalshiTradesResponse
+    const trades = Array.isArray(data.trades) ? data.trades : []
+
+    for (const trade of trades) {
+      const priceCents = resolveKalshiPriceCents(trade)
+      if (priceCents == null) continue
+      const notional = Number(trade.count) * (priceCents / 100)
+      if (!Number.isFinite(notional) || notional < minNotional) continue
+
+      const probability = priceCents / 100
+      const americanOdds = probabilityToAmerican(probability)
+      if (americanOdds !== null && americanOdds <= -300) continue
+
+      deduped.set(`kalshi:${trade.trade_id}`, {
+        id: `kalshi:${trade.trade_id}`,
+        source: 'kalshi',
+        marketTitle: market.title,
+        outcome: trade.taker_side === 'yes' ? market.yes : market.no,
+        priceCents,
+        americanOdds,
+        notional,
+        contracts: Number(trade.count),
+        timestamp: trade.created_time,
+        sport: 'NFL',
+        eventDate: resolveKalshiEventDate(
+          market.ticker,
+          market.expectedExpirationTime,
+          market.expirationTime,
+          market.closeTime
+        ),
+        ticker: market.ticker,
+        side: trade.taker_side,
+      })
+    }
+  }
+
+  return Array.from(deduped.values())
+}
+
 const mapPolymarketTradeToWhale = async (
   trade: PolymarketTrade,
   requiredNotional: number
@@ -857,6 +977,21 @@ const mapPolymarketTradeToWhale = async (
     outcomeIndex: normalized.outcomeIndex ?? undefined,
     side: trade.side,
   }
+}
+
+type KalshiMarketsResponse = {
+  markets?: Array<{
+    ticker?: string
+    title?: string
+    subtitle?: string
+    yes_sub_title?: string
+    no_sub_title?: string
+    expected_expiration_time?: string
+    expiration_time?: string
+    close_time?: string
+    status?: string
+  }>
+  cursor?: string | null
 }
 
 const fetchNflDraftPolymarketTrades = async (
@@ -1030,12 +1165,18 @@ export const fetchWhaleTrades = async (options: {
     ? Number(options.minNotional)
     : DEFAULT_MIN_NOTIONAL
 
-  const [kalshi, polymarket] = await Promise.all([
+  const [kalshi, kalshiDraft, polymarket] = await Promise.all([
     fetchKalshiTrades(limit, minNotional, options.since),
+    fetchNflDraftKalshiTrades(minNotional, options.since),
     fetchPolymarketTrades(limit, minNotional),
   ])
 
-  const sliced = mergeTradesWithSourceBalance(kalshi, polymarket, limit).filter(
+  const dedupedKalshi = new Map<string, WhaleTrade>()
+  for (const trade of [...kalshi, ...kalshiDraft]) {
+    dedupedKalshi.set(trade.id, trade)
+  }
+
+  const sliced = mergeTradesWithSourceBalance([...dedupedKalshi.values()], polymarket, limit).filter(
     (trade) => !Number.isFinite(minNotional) || trade.notional >= minNotional
   )
   if (!ENABLE_WHALE_STRENGTH_ENRICHMENT) {

@@ -103,10 +103,14 @@ const DEFAULT_LEAGUE_FILTER_OPTIONS = [
   "UFC",
 ]
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const NFL_DRAFT_HINT = /\b(?:nfl|pro football|football)\s+draft\b/i
 
-const normalizeSportLabel = (value?: string | null) => {
-  if (!value) return ""
-  const normalized = value.trim().toUpperCase()
+const normalizeSportLabel = (value?: string | null, context?: string | null) => {
+  const rawValue = value?.trim() ?? ""
+  const rawContext = context?.trim() ?? ""
+  if (NFL_DRAFT_HINT.test(`${rawValue} ${rawContext}`)) return "NFL"
+  if (!rawValue) return ""
+  const normalized = rawValue.toUpperCase()
   if (normalized === "NCAAF") return "CFB"
   return normalized
 }
@@ -314,7 +318,7 @@ const extractGameKey = (trade: WhaleTrade) => {
     .replace(/\s*(spread|moneyline|total|over|under|points|yards|touchdowns?|winner|to win).*$/i, "")
     .replace(/[^a-z0-9\s]/g, "")
     .trim()
-  return `${normalizeSportLabel(trade.sport)}:${normalized}`
+  return `${normalizeSportLabel(trade.sport, `${trade.marketTitle} ${trade.ticker ?? ""}`)}:${normalized}`
 }
 
 const mapRestingOrderbookToTrade = (item: RestingOrderbookItem): WhaleTrade | null => {
@@ -572,7 +576,11 @@ export default function SharpDetectorClient() {
 
   const leagueOptions = useMemo(() => {
     const detected = Array.from(
-      new Set(feedRows.map((trade) => normalizeSportLabel(trade.sport)).filter(Boolean))
+      new Set(
+        feedRows
+          .map((trade) => normalizeSportLabel(trade.sport, `${trade.marketTitle} ${trade.ticker ?? ""}`))
+          .filter(Boolean)
+      )
     )
     const merged = Array.from(new Set([...DEFAULT_LEAGUE_FILTER_OPTIONS, ...detected])).sort(
       (a, b) => a.localeCompare(b)
@@ -586,7 +594,7 @@ export default function SharpDetectorClient() {
       feedActivity === "active" ? FEED_MIN_NOTIONAL : RESTING_MIN_NOTIONAL
     return feedRows.filter((trade) => {
       if (!Number.isFinite(trade.notional) || trade.notional < minDisplayNotional) return false
-      const sport = normalizeSportLabel(trade.sport)
+      const sport = normalizeSportLabel(trade.sport, `${trade.marketTitle} ${trade.ticker ?? ""}`)
       if (leagueFilter !== "all" && sport !== leagueFilter) return false
       if (sourceFilter !== "all" && trade.source !== sourceFilter) return false
       if (!matchesDateWindow(trade.timestamp, dateFilter)) return false
@@ -990,7 +998,7 @@ export default function SharpDetectorClient() {
                         <div className="rounded-lg border border-white/8 bg-black/25 px-2 py-1.5">
                           <div className="text-[9px] uppercase tracking-[0.14em] text-white/38">Sport</div>
                           <div className="mt-0.5 truncate text-[11px] font-medium text-white">
-                            {normalizeSportLabel(trade.sport) || "SPORTS"}
+                            {normalizeSportLabel(trade.sport, `${trade.marketTitle} ${trade.ticker ?? ""}`) || "SPORTS"}
                           </div>
                         </div>
                         <div className="rounded-lg border border-white/8 bg-black/25 px-2 py-1.5">
@@ -1126,7 +1134,9 @@ export default function SharpDetectorClient() {
                                 {trade.source === "kalshi" ? "Kalshi" : "Polymarket"}
                               </span>
                             </TableCell>
-                            <TableCell className="align-top">{normalizeSportLabel(trade.sport) || "SPORTS"}</TableCell>
+                            <TableCell className="align-top">
+                              {normalizeSportLabel(trade.sport, `${trade.marketTitle} ${trade.ticker ?? ""}`) || "SPORTS"}
+                            </TableCell>
                             <TableCell className="align-top">{resolvePhase(trade)}</TableCell>
                             <TableCell className="align-top">{resolveOddsLabel(trade)}</TableCell>
                             <TableCell className="align-top">{formatShortDateTime(trade.timestamp)}</TableCell>

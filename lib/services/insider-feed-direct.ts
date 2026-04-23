@@ -2,6 +2,10 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { computeInsiderScore, MIN_STAKE_USD } from './polymarket-insider'
 import { buildInsiderOddsSnapshots } from './insider-odds-snapshot'
+import {
+  isNflDraftPolymarketMarket,
+  resolveNflDraftSportKeyFromPolymarketEvent,
+} from './polymarket-draft'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -137,6 +141,7 @@ type GammaEventEntry = {
   title?: string | null
   seriesSlug?: string | null
   series?: Array<{ slug?: string | null; title?: string | null }>
+  tags?: Array<{ slug?: string | null; label?: string | null }>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -161,7 +166,15 @@ const sportKeyFromSlug = (slug: string): string | null => {
 const resolveTradeEventKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug'>): string =>
   normalizeSlug(trade.eventSlug) || normalizeSlug(trade.slug)
 
-const resolveSportKeyFromEvent = (event: GammaEventEntry): string | null => {
+export const isNflDraftPolymarketText = (value?: string | null): boolean => {
+  return isNflDraftPolymarketMarket(value)
+}
+
+const resolveDraftSportKeyFromText = (...values: Array<string | null | undefined>): string | null => {
+  return values.some(isNflDraftPolymarketText) ? 'nfl' : null
+}
+
+export const resolveSportKeyFromEvent = (event: GammaEventEntry): string | null => {
   const directSeriesSlug = normalizeSlug(
     String(event.seriesSlug ?? event.series?.[0]?.slug ?? '')
   )
@@ -171,8 +184,10 @@ const resolveSportKeyFromEvent = (event: GammaEventEntry): string | null => {
     if (directSeriesSlug === 'mlb' || directSeriesSlug.includes('baseball')) return 'mlb'
   }
 
-  const eventSeriesTitle = String(event.series?.[0]?.title ?? '')
+  const eventSeriesTitle = String(event.series?.map((entry) => entry?.title ?? '').join(' ') ?? '')
   const eventTitle = String(event.title ?? '')
+  const draftKey = resolveNflDraftSportKeyFromPolymarketEvent(event)
+  if (draftKey) return draftKey
   if (MLB_TITLE_HINT.test(`${eventSeriesTitle} ${eventTitle}`)) return 'mlb'
   return null
 }
@@ -231,6 +246,9 @@ const resolveTradeSportKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'ti
   const eventSlugKey = sportKeyFromSlug(normalizeSlug(trade.eventSlug))
   if (eventSlugKey) return eventSlugKey
 
+  const draftKey = resolveDraftSportKeyFromText(trade.slug, trade.eventSlug, trade.title)
+  if (draftKey) return draftKey
+
   // MLB markets can arrive with team-name slugs that do not include an `mlb-` prefix.
   if (MLB_TITLE_HINT.test(String(trade.title ?? ''))) return 'mlb'
   return null
@@ -249,7 +267,7 @@ const sportLabelForTrade = (
 }
 
 const sportLabel = (slug: string): string | null => {
-  const key = sportKeyFromSlug(normalizeSlug(slug))
+  const key = resolveDraftSportKeyFromText(slug) ?? sportKeyFromSlug(normalizeSlug(slug))
   if (!key) return null
   return SPORT_LABEL_MAP[key] ?? null
 }
@@ -492,10 +510,13 @@ export type InsiderFeedRefreshResult = {
 }
 
 // Target sports for holder-based wallet discovery
-const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-', 'mlb-', 'baseball-']
+const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-', 'mlb-', 'baseball-', 'nfl-']
 const HOLDER_DISCOVERY_MARKETS_PER_SPORT = 20
 const HOLDER_DISCOVERY_CONCURRENCY = 10
 const HOLDER_DISCOVERY_MAX_NEW_WALLETS = 150
+
+const isHolderDiscoveryTargetSlug = (slug: string) =>
+  HOLDER_DISCOVERY_PREFIXES.some(p => slug.startsWith(p)) || isNflDraftPolymarketText(slug)
 
 // ── Helper: compute wallet stats from trades ─────────────────────────────────
 
@@ -693,21 +714,34 @@ export async function discoverInsiderWallets(): Promise<DiscoveryResult> {
   let holderDiscoveredCount = 0
 
   try {
-    const gammaMarketsUrl = `${GAMMA_API}/markets?closed=false&active=true&limit=200&order=volume24hr&ascending=false`
-    const gammaRaw = await fetchJson(gammaMarketsUrl) as any[] | null
-    const gammaMarkets = Array.isArray(gammaRaw) ? gammaRaw : []
+    const gammaMarketUrls = [
+      `${GAMMA_API}/markets?closed=false&active=true&limit=200&order=volume24hr&ascending=false`,
+      `${GAMMA_API}/markets?closed=false&active=true&limit=80&search=${encodeURIComponent('nfl draft')}`,
+      `${GAMMA_API}/markets?closed=false&active=true&limit=80&search=${encodeURIComponent('pro football draft')}`,
+    ]
+    const gammaRawPages = await Promise.all(gammaMarketUrls.map((url) => fetchJson(url)))
+    const gammaMarkets = gammaRawPages.flatMap((raw) =>
+      Array.isArray((raw as any)?.value)
+        ? (raw as any).value
+        : Array.isArray(raw)
+          ? raw
+          : []
+    )
 
     const targetMarkets: { slug: string; conditionId: string }[] = []
+    const targetConditionIds = new Set<string>()
     for (const m of gammaMarkets) {
       const slug = normalizeSlug(String(m.slug ?? ''))
       const conditionId = String(m.conditionId ?? '')
-      if (!conditionId || !HOLDER_DISCOVERY_PREFIXES.some(p => slug.startsWith(p))) continue
+      if (!conditionId || !isHolderDiscoveryTargetSlug(slug)) continue
+      if (targetConditionIds.has(conditionId)) continue
+      targetConditionIds.add(conditionId)
       targetMarkets.push({ slug, conditionId })
     }
 
     const perSport = new Map<string, number>()
     const cappedMarkets = targetMarkets.filter(m => {
-      const prefix = HOLDER_DISCOVERY_PREFIXES.find(p => m.slug.startsWith(p)) ?? ''
+      const prefix = HOLDER_DISCOVERY_PREFIXES.find(p => m.slug.startsWith(p)) ?? (isNflDraftPolymarketText(m.slug) ? 'nfl-draft-' : '')
       const count = perSport.get(prefix) ?? 0
       if (count >= HOLDER_DISCOVERY_MARKETS_PER_SPORT) return false
       perSport.set(prefix, count + 1)

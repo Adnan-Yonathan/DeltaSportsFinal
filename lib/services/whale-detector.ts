@@ -4,9 +4,11 @@ import { fetchOdds } from '@/lib/api/odds-api'
 import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import type { Bookmaker, OddsGame, OddsOutcome } from '@/lib/types/odds'
+import { isNflDraftPolymarketMarket } from './polymarket-draft'
 
 const KALSHI_BASE = KALSHI_BASE_CANDIDATES[0] ?? 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
+const POLYMARKET_GAMMA_MARKETS = 'https://gamma-api.polymarket.com/markets'
 
 export const DEFAULT_LIMIT = 50
 export const DEFAULT_MIN_NOTIONAL = 2000
@@ -20,6 +22,8 @@ const MIN_GAME_NOTIONAL = 2000
 const POLYMARKET_MAX_LIMIT = 1000
 const POLYMARKET_PAGE_LIMIT = 1000
 const POLYMARKET_MAX_PAGES = 8
+const POLYMARKET_DRAFT_MARKET_LIMIT = 40
+const POLYMARKET_DRAFT_TRADES_PER_MARKET = 80
 const SOURCE_BALANCE_RATIO = 0.2
 const ENABLE_WHALE_STRENGTH_ENRICHMENT = false
 
@@ -265,6 +269,14 @@ type PolymarketEventRecord = {
   markets?: Array<{ sportsMarketType?: string }>
 }
 
+type PolymarketGammaMarket = {
+  slug?: string
+  conditionId?: string
+  title?: string
+  question?: string
+  eventSlug?: string
+}
+
 export type WhaleTrade = {
   id: string
   source: 'kalshi' | 'polymarket'
@@ -459,7 +471,10 @@ const isKalshiSportTicker = (ticker?: string) => {
 const isPolymarketSportSlug = (slug?: string) => {
   if (!slug) return false
   const normalized = slug.toLowerCase()
-  return POLYMARKET_SPORT_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  return (
+    POLYMARKET_SPORT_PREFIXES.some((prefix) => normalized.startsWith(prefix)) ||
+    isNflDraftPolymarketMarket(normalized)
+  )
 }
 
 const parseKalshiDate = (ticker: string) => {
@@ -480,6 +495,7 @@ const resolveKalshiSport = (ticker: string) => {
 
 const parsePolymarketSport = (slug?: string) => {
   if (!slug) return 'Sports'
+  if (isNflDraftPolymarketMarket(slug)) return 'NFL'
   const [prefix] = slug.toLowerCase().split('-')
   return POLYMARKET_SPORT_LABELS[prefix] ?? 'Sports'
 }
@@ -499,6 +515,7 @@ const resolvePolymarketSportFromSeriesSlugs = (seriesSlugs: string[] = []) => {
   for (const seriesSlug of seriesSlugs) {
     const normalized = normalizePolymarketTagToken(seriesSlug)
     if (!normalized) continue
+    if (isNflDraftPolymarketMarket(normalized)) return 'NFL'
 
     if (POLYMARKET_SPORT_LABELS[normalized]) return POLYMARKET_SPORT_LABELS[normalized]
     if (POLYMARKET_TAG_SPORT_LABELS[normalized]) return POLYMARKET_TAG_SPORT_LABELS[normalized]
@@ -521,6 +538,7 @@ const resolvePolymarketSportFromTags = (tags: PolymarketEventTag[] = []) => {
   let genericSportsTagSeen = false
   for (const tag of tags) {
     const slug = normalizePolymarketTagToken(tag.slug)
+    if (isNflDraftPolymarketMarket(slug)) return 'NFL'
     if (slug === 'sports') genericSportsTagSeen = true
     if (slug && POLYMARKET_SPORT_LABELS[slug] && POLYMARKET_SPORT_LABELS[slug] !== 'Sports') {
       return POLYMARKET_SPORT_LABELS[slug]
@@ -533,6 +551,7 @@ const resolvePolymarketSportFromTags = (tags: PolymarketEventTag[] = []) => {
     }
 
     const label = normalizePolymarketTagToken(tag.label)
+    if (isNflDraftPolymarketMarket(label)) return 'NFL'
     if (label === 'sports') genericSportsTagSeen = true
     if (label && POLYMARKET_SPORT_LABELS[label] && POLYMARKET_SPORT_LABELS[label] !== 'Sports') {
       return POLYMARKET_SPORT_LABELS[label]
@@ -598,10 +617,18 @@ const fetchPolymarketEvent = async (slug: string) => {
     const hasSportsMarketType = Array.isArray(event.markets)
       ? event.markets.some((market) => Boolean(market?.sportsMarketType))
       : false
+    const hasNflDraftSignal =
+      isNflDraftPolymarketMarket(slug) ||
+      isNflDraftPolymarketMarket(title) ||
+      seriesSlugs.some(isNflDraftPolymarketMarket) ||
+      tags.some((tag) =>
+        isNflDraftPolymarketMarket(tag.slug) || isNflDraftPolymarketMarket(tag.label)
+      )
     const isSports =
       category === 'sports' ||
       hasSportsTag ||
       hasSportsMarketType ||
+      hasNflDraftSignal ||
       seriesSlugs.some((seriesSlug) => {
         const token = seriesSlug.split('-')[0] ?? ''
         return POLYMARKET_SPORT_SERIES.has(seriesSlug) || POLYMARKET_SPORT_SERIES.has(token)
@@ -609,6 +636,7 @@ const fetchPolymarketEvent = async (slug: string) => {
       POLYMARKET_SPORT_PREFIXES.some((prefix) => title.startsWith(prefix.replace('-', '')))
 
     const sportLabel =
+      (hasNflDraftSignal ? 'NFL' : undefined) ||
       resolvePolymarketSportFromTags(tags) ||
       resolvePolymarketSportFromSeriesSlugs(seriesSlugs) ||
       parsePolymarketSport(slug)
@@ -790,6 +818,121 @@ const fetchKalshiTrades = async (
   return whales.filter(Boolean) as WhaleTrade[]
 }
 
+const mapPolymarketTradeToWhale = async (
+  trade: PolymarketTrade,
+  requiredNotional: number
+): Promise<WhaleTrade | null> => {
+  const eventSlug = trade.eventSlug || trade.slug
+  if (!eventSlug) return null
+  const isSportsSlug = isPolymarketSportSlug(eventSlug)
+  if (!isSportsSlug) {
+    const event = await fetchPolymarketEvent(eventSlug)
+    if (!event?.isSports) return null
+  }
+  const normalized = normalizePolymarketTrade(trade)
+  const notional = Number(trade.size) * Number(normalized.price)
+  if (!Number.isFinite(notional) || notional < requiredNotional) return null
+  const priceCents = Math.round(Number(normalized.price) * 100)
+  const probability = Number(normalized.price)
+  const americanOdds = probabilityToAmerican(probability)
+  if (americanOdds !== null && americanOdds <= -300) return null
+  const sportLabel = await resolvePolymarketSportLabel(
+    eventSlug,
+    parsePolymarketSport(eventSlug)
+  )
+  return {
+    id: `polymarket:${trade.transactionHash}`,
+    source: 'polymarket' as const,
+    marketTitle: trade.title,
+    outcome: normalized.outcome,
+    proxyWallet: trade.proxyWallet,
+    priceCents,
+    americanOdds,
+    notional,
+    contracts: Number(trade.size),
+    timestamp: new Date(trade.timestamp * 1000).toISOString(),
+    sport: sportLabel,
+    eventDate: parsePolymarketDate(eventSlug),
+    slug: trade.slug,
+    outcomeIndex: normalized.outcomeIndex ?? undefined,
+    side: trade.side,
+  }
+}
+
+const fetchNflDraftPolymarketTrades = async (
+  requiredNotional: number
+): Promise<WhaleTrade[]> => {
+  const searches = ['nfl draft', 'pro football draft']
+  const marketsByCondition = new Map<string, PolymarketGammaMarket>()
+
+  for (const search of searches) {
+    const url = new URL(POLYMARKET_GAMMA_MARKETS)
+    url.searchParams.set('active', 'true')
+    url.searchParams.set('closed', 'false')
+    url.searchParams.set('limit', String(POLYMARKET_DRAFT_MARKET_LIMIT))
+    url.searchParams.set('search', search)
+
+    try {
+      const res = await fetch(url.toString(), { cache: 'no-store' })
+      if (!res.ok) continue
+      const raw = await res.json()
+      const markets = Array.isArray(raw?.value)
+        ? raw.value
+        : Array.isArray(raw)
+          ? raw
+          : []
+
+      for (const market of markets as PolymarketGammaMarket[]) {
+        const conditionId = String(market.conditionId ?? '').trim()
+        if (!conditionId) continue
+        const combined = `${market.slug ?? ''} ${market.title ?? ''} ${market.question ?? ''}`
+        if (!isNflDraftPolymarketMarket(combined)) continue
+        marketsByCondition.set(conditionId, market)
+      }
+    } catch {
+      continue
+    }
+  }
+
+  const mapped = new Map<string, WhaleTrade>()
+  for (const [conditionId, market] of marketsByCondition) {
+    const url = new URL(POLYMARKET_TRADES)
+    url.searchParams.set('market', conditionId)
+    url.searchParams.set('limit', String(POLYMARKET_DRAFT_TRADES_PER_MARKET))
+
+    try {
+      const res = await fetch(url.toString(), { cache: 'no-store' })
+      if (!res.ok) continue
+      const raw = (await res.json()) as { value?: PolymarketTrade[] } | PolymarketTrade[]
+      const trades = Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as { value?: PolymarketTrade[] }).value)
+          ? (raw as { value?: PolymarketTrade[] }).value ?? []
+          : []
+
+      const results = await Promise.all(
+        trades.map((trade) => {
+          const withFallbacks = {
+            ...trade,
+            slug: trade.slug || market.slug || '',
+            eventSlug: trade.eventSlug || market.eventSlug || market.slug,
+            title: trade.title || market.title || market.question || 'NFL Draft market',
+          }
+          return mapPolymarketTradeToWhale(withFallbacks, requiredNotional)
+        })
+      )
+
+      for (const item of results) {
+        if (item) mapped.set(item.id, item)
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return Array.from(mapped.values())
+}
+
 const fetchPolymarketTrades = async (
   limit: number,
   minNotional: number
@@ -818,43 +961,7 @@ const fetchPolymarketTrades = async (
     if (!trades.length) break
 
     const results = await Promise.all(
-      trades.map(async (trade) => {
-        const eventSlug = trade.eventSlug || trade.slug
-        if (!eventSlug) return null
-        const isSportsSlug = isPolymarketSportSlug(eventSlug)
-        if (!isSportsSlug) {
-          const event = await fetchPolymarketEvent(eventSlug)
-          if (!event?.isSports) return null
-        }
-        const normalized = normalizePolymarketTrade(trade)
-        const notional = Number(trade.size) * Number(normalized.price)
-        if (!Number.isFinite(notional) || notional < requiredNotional) return null
-        const priceCents = Math.round(Number(normalized.price) * 100)
-        const probability = Number(normalized.price)
-        const americanOdds = probabilityToAmerican(probability)
-        if (americanOdds !== null && americanOdds <= -300) return null
-        const sportLabel = await resolvePolymarketSportLabel(
-          eventSlug,
-          parsePolymarketSport(eventSlug)
-        )
-        return {
-          id: `polymarket:${trade.transactionHash}`,
-          source: 'polymarket' as const,
-          marketTitle: trade.title,
-          outcome: normalized.outcome,
-          proxyWallet: trade.proxyWallet,
-          priceCents,
-          americanOdds,
-          notional,
-          contracts: Number(trade.size),
-          timestamp: new Date(trade.timestamp * 1000).toISOString(),
-          sport: sportLabel,
-          eventDate: parsePolymarketDate(eventSlug),
-          slug: trade.slug,
-          outcomeIndex: normalized.outcomeIndex ?? undefined,
-          side: trade.side,
-        }
-      })
+      trades.map((trade) => mapPolymarketTradeToWhale(trade, requiredNotional))
     )
 
     for (const item of results) {
@@ -863,6 +970,11 @@ const fetchPolymarketTrades = async (
     }
 
     if (trades.length < pageLimit) break
+  }
+
+  const draftTrades = await fetchNflDraftPolymarketTrades(requiredNotional)
+  for (const item of draftTrades) {
+    deduped.set(item.id, item)
   }
 
   return Array.from(deduped.values())

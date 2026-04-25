@@ -39,6 +39,7 @@ const FEATURE_SCREENS: Array<{
   title: string
   eyebrow: string
   description: string
+  summary: string
   detail: string
   videoSrc: string
   posterSrc: string
@@ -49,6 +50,7 @@ const FEATURE_SCREENS: Array<{
     title: TOOL_DISPLAY_NAMES['whale-detector'],
     eyebrow: 'Tool one',
     description: 'See large-ticket flow and live market pressure in one feed.',
+    summary: 'Track oversized bets, fast price movement, and where the market is getting hit in real time.',
     detail:
       'Use Whale Feed to catch the print first, then decide whether the price is still actionable before the rest of the market adjusts.',
     videoSrc: '/whalefeedvid.mobile.mp4',
@@ -60,6 +62,7 @@ const FEATURE_SCREENS: Array<{
     title: TOOL_DISPLAY_NAMES['insider-feed'],
     eyebrow: 'Tool two',
     description: 'Confirm where top ROI wallets are already positioned.',
+    summary: 'See what the best-performing wallets already hold so you can validate whether your angle has real conviction behind it.',
     detail:
       'Use Insider Feed as your confirmation layer. If the highest quality wallets are already leaning the same way, conviction is higher.',
     videoSrc: '/insiderfeedvid.mobile.mp4',
@@ -71,6 +74,7 @@ const FEATURE_SCREENS: Array<{
     title: TOOL_DISPLAY_NAMES['sharp-props'],
     eyebrow: 'Tool three',
     description: 'Read prop pressure fast and catch sharp action before the market finishes moving.',
+    summary: 'Spot player prop steam, compare market numbers, and react before books finish adjusting.',
     detail:
       'Use Sharp Props when the edge is in the player market. It is the fastest way to see pressure, compare numbers, and move before books finish reacting.',
     videoSrc: '/sharppropsvid.mobile.mp4',
@@ -203,7 +207,13 @@ function ToolFeatureScreen({
             </div>
             <div className="text-base font-bold text-white">{feature.title}</div>
           </div>
-          <p className="mt-3 text-sm leading-relaxed text-white/55">{feature.detail}</p>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300/70">
+              What this tool does
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-white/75">{feature.summary}</p>
+          </div>
+          <p className="mt-4 text-sm leading-relaxed text-white/55">{feature.detail}</p>
           <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/6 px-4 py-3">
             <p className="text-xs leading-relaxed text-emerald-100/85">
               Tap the video controls directly to play, pause, scrub, or turn sound on.

@@ -6,10 +6,13 @@ import {
   Activity,
   ArrowLeft,
   Check,
-  ExternalLink,
   Eye,
   Loader2,
+  Pause,
+  Play,
   Shield,
+  Volume2,
+  VolumeX,
   Waves,
 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
@@ -43,7 +46,6 @@ const FEATURE_SCREENS: Array<{
   detail: string
   videoSrc: string
   posterSrc: string
-  href: string
 }> = [
   {
     id: 'whale-feed',
@@ -55,7 +57,6 @@ const FEATURE_SCREENS: Array<{
       'Use Whale Feed to catch the print first, then decide whether the price is still actionable before the rest of the market adjusts.',
     videoSrc: '/whalefeedvid.mp4',
     posterSrc: '/updatedwhalefeed.png',
-    href: '/sharp-detector',
   },
   {
     id: 'insider-feed',
@@ -67,7 +68,6 @@ const FEATURE_SCREENS: Array<{
       'Use Insider Feed as your confirmation layer. If the highest quality wallets are already leaning the same way, conviction is higher.',
     videoSrc: '/insiderfeedvid.mp4',
     posterSrc: '/insiderfeed.png',
-    href: '/polymarket-insider',
   },
   {
     id: 'sharp-props',
@@ -79,7 +79,6 @@ const FEATURE_SCREENS: Array<{
       'Use Sharp Props when the edge is in the player market. It is the fastest way to see pressure, compare numbers, and move before books finish reacting.',
     videoSrc: '/sharppropsvid.mp4',
     posterSrc: '/sharpprojections.png',
-    href: '/sharp-props',
   },
 ]
 
@@ -154,6 +153,38 @@ function ToolFeatureScreen({
 }) {
   const firstName = draft.name.trim().split(' ')[0]
   const [videoFailed, setVideoFailed] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
+  const videoRef = useState<HTMLVideoElement | null>(null)[0]
+
+  const setVideoElement = (element: HTMLVideoElement | null) => {
+    if (!element) return
+    element.muted = isMuted
+  }
+
+  const togglePlayback = async () => {
+    const video = document.getElementById(`trial-video-${feature.id}`) as HTMLVideoElement | null
+    if (!video) return
+    try {
+      if (video.paused) {
+        await video.play()
+        setIsPlaying(true)
+      } else {
+        video.pause()
+        setIsPlaying(false)
+      }
+    } catch {
+      setVideoFailed(true)
+    }
+  }
+
+  const toggleMute = () => {
+    const video = document.getElementById(`trial-video-${feature.id}`) as HTMLVideoElement | null
+    if (!video) return
+    const nextMuted = !video.muted
+    video.muted = nextMuted
+    setIsMuted(nextMuted)
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -178,20 +209,45 @@ function ToolFeatureScreen({
               className="h-full w-full object-cover"
             />
           ) : (
-            <video
-              key={feature.videoSrc}
-              autoPlay
-              className="h-full w-full object-cover"
-              controls
-              loop
-              muted
-              playsInline
-              poster={feature.posterSrc}
-              preload="auto"
-              onError={() => setVideoFailed(true)}
-            >
-              <source src={feature.videoSrc} type="video/mp4" />
-            </video>
+            <div className="relative h-full w-full">
+              <video
+                id={`trial-video-${feature.id}`}
+                key={feature.videoSrc}
+                className="h-full w-full cursor-pointer object-cover"
+                controls={false}
+                playsInline
+                poster={feature.posterSrc}
+                preload="metadata"
+                muted
+                onClick={() => void togglePlayback()}
+                onEnded={() => setIsPlaying(false)}
+                onPause={() => setIsPlaying(false)}
+                onPlay={() => setIsPlaying(true)}
+                onError={() => setVideoFailed(true)}
+                ref={setVideoElement}
+              >
+                <source src={feature.videoSrc} type="video/mp4" />
+              </video>
+              <button
+                type="button"
+                onClick={() => void togglePlayback()}
+                className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/55 via-black/10 to-transparent"
+                aria-label={isPlaying ? 'Pause video' : 'Play video'}
+              >
+                <span className="flex items-center gap-3 rounded-full border border-white/20 bg-black/55 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur">
+                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {isPlaying ? 'Pause video' : 'Play video'}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="absolute bottom-3 right-3 rounded-full border border-white/15 bg-black/60 p-2 text-white backdrop-blur transition hover:border-white/30"
+                aria-label={isMuted ? 'Turn sound on' : 'Turn sound off'}
+              >
+                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+            </div>
           )}
         </div>
         <div className="p-4 sm:p-5">
@@ -202,18 +258,10 @@ function ToolFeatureScreen({
             <div className="text-base font-bold text-white">{feature.title}</div>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-white/55">{feature.detail}</p>
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/6 px-4 py-3">
+          <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/6 px-4 py-3">
             <p className="text-xs leading-relaxed text-emerald-100/85">
-              If autoplay gets blocked on your device, use the video controls directly. The poster
-              image stays visible as a fallback.
+              Tap the video to play or pause. Use the sound button in the corner if you want audio.
             </p>
-            <a
-              href={feature.href}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-emerald-300/30 bg-black/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 transition hover:border-emerald-200/50 hover:bg-black/35"
-            >
-              Open tool
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
           </div>
         </div>
       </div>

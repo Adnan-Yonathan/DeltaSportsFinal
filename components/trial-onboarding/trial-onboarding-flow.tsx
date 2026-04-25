@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowLeft,
   Check,
+  ExternalLink,
   Eye,
   Loader2,
   Shield,
@@ -22,33 +23,63 @@ import {
   type TrialOnboardingDraft,
 } from '@/lib/trial-flow'
 
-type ScreenId = 'name' | 'features' | 'roi' | 'paywall'
+type ScreenId = 'name' | 'whale-feed' | 'insider-feed' | 'sharp-props' | 'roi' | 'paywall'
 
 const SCREENS: Array<{ id: ScreenId; label: string; progress: number; cta: string }> = [
-  { id: 'name', label: 'Step 1 of 4', progress: 25, cta: 'Continue ->' },
-  { id: 'features', label: 'Step 2 of 4', progress: 50, cta: 'See the math ->' },
-  { id: 'roi', label: 'Step 3 of 4', progress: 75, cta: 'Continue to checkout ->' },
-  { id: 'paywall', label: 'Step 4 of 4', progress: 100, cta: 'Start my free trial ->' },
+  { id: 'name', label: 'Step 1 of 6', progress: 16.7, cta: 'Continue ->' },
+  { id: 'whale-feed', label: 'Step 2 of 6', progress: 33.4, cta: 'Next tool ->' },
+  { id: 'insider-feed', label: 'Step 3 of 6', progress: 50, cta: 'Next tool ->' },
+  { id: 'sharp-props', label: 'Step 4 of 6', progress: 66.7, cta: 'See the math ->' },
+  { id: 'roi', label: 'Step 5 of 6', progress: 83.4, cta: 'Continue to checkout ->' },
+  { id: 'paywall', label: 'Step 6 of 6', progress: 100, cta: 'Start my free trial ->' },
 ]
 
-const FEATURES = [
+const FEATURE_SCREENS: Array<{
+  id: Extract<ScreenId, 'whale-feed' | 'insider-feed' | 'sharp-props'>
+  icon: JSX.Element
+  title: string
+  eyebrow: string
+  description: string
+  detail: string
+  videoSrc: string
+  posterSrc: string
+  href: string
+}> = [
   {
+    id: 'whale-feed',
     icon: <Waves className="h-5 w-5" />,
     title: TOOL_DISPLAY_NAMES['whale-detector'],
+    eyebrow: 'Tool one',
     description: 'See large-ticket flow and live market pressure in one feed.',
+    detail:
+      'Use Whale Feed to catch the print first, then decide whether the price is still actionable before the rest of the market adjusts.',
     videoSrc: '/whalefeedvid.mp4',
+    posterSrc: '/updatedwhalefeed.png',
+    href: '/sharp-detector',
   },
   {
+    id: 'insider-feed',
     icon: <Eye className="h-5 w-5" />,
     title: TOOL_DISPLAY_NAMES['insider-feed'],
+    eyebrow: 'Tool two',
     description: 'Confirm where top ROI wallets are already positioned.',
+    detail:
+      'Use Insider Feed as your confirmation layer. If the highest quality wallets are already leaning the same way, conviction is higher.',
     videoSrc: '/insiderfeedvid.mp4',
+    posterSrc: '/insiderfeed.png',
+    href: '/polymarket-insider',
   },
   {
+    id: 'sharp-props',
     icon: <Activity className="h-5 w-5" />,
     title: TOOL_DISPLAY_NAMES['sharp-props'],
+    eyebrow: 'Tool three',
     description: 'Read prop pressure fast and catch sharp action before the market finishes moving.',
+    detail:
+      'Use Sharp Props when the edge is in the player market. It is the fastest way to see pressure, compare numbers, and move before books finish reacting.',
     videoSrc: '/sharppropsvid.mp4',
+    posterSrc: '/sharpprojections.png',
+    href: '/sharp-props',
   },
 ]
 
@@ -114,56 +145,81 @@ function NameScreen({
   )
 }
 
-function FeaturesScreen({ draft }: { draft: TrialOnboardingDraft }) {
+function ToolFeatureScreen({
+  draft,
+  feature,
+}: {
+  draft: TrialOnboardingDraft
+  feature: (typeof FEATURE_SCREENS)[number]
+}) {
   const firstName = draft.name.trim().split(' ')[0]
+  const [videoFailed, setVideoFailed] = useState(false)
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">
-          What you get
+          {feature.eyebrow}
         </p>
         <h2 className="mt-2 text-3xl font-black tracking-[-0.03em] text-white">
-          {firstName ? `${firstName}, this is the edge.` : 'This is the edge.'}
+          {firstName ? `${firstName}, start with ${feature.title}.` : `Start with ${feature.title}.`}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-white/55">
-          Delta keeps the core workflow tight: spot the move, confirm the conviction, then act fast.
+          {feature.description}
         </p>
       </div>
 
-      <div className="grid gap-3">
-        {FEATURES.map((feature) => (
-          <div
-            key={feature.title}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-          >
-            <div className="aspect-[16/10] border-b border-white/10 bg-black">
-              <video
-                autoPlay
-                className="h-full w-full object-cover"
-                loop
-                muted
-                playsInline
-                preload="metadata"
-              >
-                <source src={feature.videoSrc} type="video/mp4" />
-              </video>
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+        <div className="aspect-[16/10] border-b border-white/10 bg-black">
+          {videoFailed ? (
+            <img
+              src={feature.posterSrc}
+              alt={`${feature.title} preview`}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <video
+              key={feature.videoSrc}
+              autoPlay
+              className="h-full w-full object-cover"
+              controls
+              loop
+              muted
+              playsInline
+              poster={feature.posterSrc}
+              preload="auto"
+              onError={() => setVideoFailed(true)}
+            >
+              <source src={feature.videoSrc} type="video/mp4" />
+            </video>
+          )}
+        </div>
+        <div className="p-4 sm:p-5">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-2 text-emerald-300">
+              {feature.icon}
             </div>
-            <div className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-2 text-emerald-300">
-                  {feature.icon}
-                </div>
-                <div className="text-base font-bold text-white">{feature.title}</div>
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-white/55">{feature.description}</p>
-            </div>
+            <div className="text-base font-bold text-white">{feature.title}</div>
           </div>
-        ))}
+          <p className="mt-3 text-sm leading-relaxed text-white/55">{feature.detail}</p>
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/6 px-4 py-3">
+            <p className="text-xs leading-relaxed text-emerald-100/85">
+              If autoplay gets blocked on your device, use the video controls directly. The poster
+              image stays visible as a fallback.
+            </p>
+            <a
+              href={feature.href}
+              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-emerald-300/30 bg-black/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 transition hover:border-emerald-200/50 hover:bg-black/35"
+            >
+              Open tool
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/6 p-4 text-sm leading-relaxed text-emerald-100/85">
-        The point is not more dashboards. It is making better bets faster.
+        Delta keeps the workflow tight: spot the move, confirm the conviction, then act fast.
       </div>
     </div>
   )
@@ -344,9 +400,9 @@ export default function TrialOnboardingFlow() {
   const [direction, setDirection] = useState<1 | -1>(1)
   const [draft, setDraft] = useState<TrialOnboardingDraft>(createDefaultTrialOnboardingDraft)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [featuresUnlocked, setFeaturesUnlocked] = useState(false)
 
   const screen = SCREENS[screenIndex]
+  const feature = FEATURE_SCREENS.find((entry) => entry.id === screen?.id)
 
   useEffect(() => {
     try {
@@ -359,17 +415,6 @@ export default function TrialOnboardingFlow() {
 
     trackTrialFlowEvent('onboarding_started', { screen: 'name' })
   }, [])
-
-  useEffect(() => {
-    if (screen?.id !== 'features') return
-    if (featuresUnlocked) return
-
-    const timer = window.setTimeout(() => {
-      setFeaturesUnlocked(true)
-    }, 5000)
-
-    return () => window.clearTimeout(timer)
-  }, [featuresUnlocked, screen?.id])
 
   function updateDraft(patch: Partial<TrialOnboardingDraft>) {
     setDraft((previous) => {
@@ -435,13 +480,9 @@ export default function TrialOnboardingFlow() {
   const ctaDisabled =
     screen?.id === 'name'
       ? draft.name.trim().length === 0
-      : screen?.id === 'features'
-        ? !featuresUnlocked
-        : false
+      : false
   const isFinal = screen?.id === 'paywall'
-  const ctaLabel = screen?.id === 'features' && !featuresUnlocked
-    ? 'Watch 5 seconds to continue...'
-    : screen.cta
+  const ctaLabel = screen.cta
 
   const variants = {
     enter: (dir: number) => ({ opacity: 0, x: dir * 40 }),
@@ -495,7 +536,7 @@ export default function TrialOnboardingFlow() {
               {screen.id === 'name' && (
                 <NameScreen draft={draft} onName={(value) => updateDraft({ name: value })} />
               )}
-              {screen.id === 'features' && <FeaturesScreen draft={draft} />}
+              {feature && <ToolFeatureScreen draft={draft} feature={feature} />}
               {screen.id === 'roi' && (
                 <RoiScreen
                   draft={draft}

@@ -595,13 +595,13 @@ export function CinematicLandingHero({
           <div className="intro-ctas mt-6 mb-5 flex w-full max-w-xl flex-col gap-3 px-2 sm:flex-row sm:gap-4">
             <a
               href="#features"
-              className="flex-1 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:text-emerald-100"
+              className="order-2 flex-1 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:text-emerald-100 sm:order-1"
             >
               Features
             </a>
             <a
               href="/auth/signup"
-              className="flex-1 rounded-xl border border-emerald-300/40 bg-emerald-400/15 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-400/25"
+              className="order-1 flex-1 rounded-xl border border-emerald-300/40 bg-emerald-400/15 px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-400/25 sm:order-2"
             >
               Get Instant Access
             </a>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity,
@@ -8,11 +8,7 @@ import {
   Check,
   Eye,
   Loader2,
-  Pause,
-  Play,
   Shield,
-  Volume2,
-  VolumeX,
   Waves,
 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
@@ -55,7 +51,7 @@ const FEATURE_SCREENS: Array<{
     description: 'See large-ticket flow and live market pressure in one feed.',
     detail:
       'Use Whale Feed to catch the print first, then decide whether the price is still actionable before the rest of the market adjusts.',
-    videoSrc: '/whalefeedvid.mp4',
+    videoSrc: '/whalefeedvid.mobile.mp4',
     posterSrc: '/updatedwhalefeed.png',
   },
   {
@@ -66,7 +62,7 @@ const FEATURE_SCREENS: Array<{
     description: 'Confirm where top ROI wallets are already positioned.',
     detail:
       'Use Insider Feed as your confirmation layer. If the highest quality wallets are already leaning the same way, conviction is higher.',
-    videoSrc: '/insiderfeedvid.mp4',
+    videoSrc: '/insiderfeedvid.mobile.mp4',
     posterSrc: '/insiderfeed.png',
   },
   {
@@ -77,7 +73,7 @@ const FEATURE_SCREENS: Array<{
     description: 'Read prop pressure fast and catch sharp action before the market finishes moving.',
     detail:
       'Use Sharp Props when the edge is in the player market. It is the fastest way to see pressure, compare numbers, and move before books finish reacting.',
-    videoSrc: '/sharppropsvid.mp4',
+    videoSrc: '/sharppropsvid.mobile.mp4',
     posterSrc: '/sharpprojections.png',
   },
 ]
@@ -153,38 +149,15 @@ function ToolFeatureScreen({
 }) {
   const firstName = draft.name.trim().split(' ')[0]
   const [videoFailed, setVideoFailed] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isMuted, setIsMuted] = useState(true)
-  const videoRef = useState<HTMLVideoElement | null>(null)[0]
+  const videoRef = useRef<HTMLVideoElement | null>(null)
 
-  const setVideoElement = (element: HTMLVideoElement | null) => {
-    if (!element) return
-    element.muted = isMuted
-  }
-
-  const togglePlayback = async () => {
-    const video = document.getElementById(`trial-video-${feature.id}`) as HTMLVideoElement | null
+  useEffect(() => {
+    const video = videoRef.current
     if (!video) return
-    try {
-      if (video.paused) {
-        await video.play()
-        setIsPlaying(true)
-      } else {
-        video.pause()
-        setIsPlaying(false)
-      }
-    } catch {
-      setVideoFailed(true)
-    }
-  }
-
-  const toggleMute = () => {
-    const video = document.getElementById(`trial-video-${feature.id}`) as HTMLVideoElement | null
-    if (!video) return
-    const nextMuted = !video.muted
-    video.muted = nextMuted
-    setIsMuted(nextMuted)
-  }
+    video.pause()
+    video.currentTime = 0
+    video.controls = true
+  }, [feature.id])
 
   return (
     <div className="flex flex-col gap-5">
@@ -209,45 +182,18 @@ function ToolFeatureScreen({
               className="h-full w-full object-cover"
             />
           ) : (
-            <div className="relative h-full w-full">
-              <video
-                id={`trial-video-${feature.id}`}
-                key={feature.videoSrc}
-                className="h-full w-full cursor-pointer object-cover"
-                controls={false}
-                playsInline
-                poster={feature.posterSrc}
-                preload="metadata"
-                muted
-                onClick={() => void togglePlayback()}
-                onEnded={() => setIsPlaying(false)}
-                onPause={() => setIsPlaying(false)}
-                onPlay={() => setIsPlaying(true)}
-                onError={() => setVideoFailed(true)}
-                ref={setVideoElement}
-              >
-                <source src={feature.videoSrc} type="video/mp4" />
-              </video>
-              <button
-                type="button"
-                onClick={() => void togglePlayback()}
-                className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/55 via-black/10 to-transparent"
-                aria-label={isPlaying ? 'Pause video' : 'Play video'}
-              >
-                <span className="flex items-center gap-3 rounded-full border border-white/20 bg-black/55 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur">
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {isPlaying ? 'Pause video' : 'Play video'}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleMute}
-                className="absolute bottom-3 right-3 rounded-full border border-white/15 bg-black/60 p-2 text-white backdrop-blur transition hover:border-white/30"
-                aria-label={isMuted ? 'Turn sound on' : 'Turn sound off'}
-              >
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-            </div>
+            <video
+              key={feature.videoSrc}
+              ref={videoRef}
+              className="h-full w-full object-cover"
+              controls
+              playsInline
+              poster={feature.posterSrc}
+              preload="metadata"
+              onError={() => setVideoFailed(true)}
+            >
+              <source src={feature.videoSrc} type="video/mp4" />
+            </video>
           )}
         </div>
         <div className="p-4 sm:p-5">
@@ -260,7 +206,7 @@ function ToolFeatureScreen({
           <p className="mt-3 text-sm leading-relaxed text-white/55">{feature.detail}</p>
           <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/6 px-4 py-3">
             <p className="text-xs leading-relaxed text-emerald-100/85">
-              Tap the video to play or pause. Use the sound button in the corner if you want audio.
+              Tap the video controls directly to play, pause, scrub, or turn sound on.
             </p>
           </div>
         </div>

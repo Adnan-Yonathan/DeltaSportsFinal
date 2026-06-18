@@ -3,7 +3,7 @@ export const ALLOWED_POLYMARKET_SPORT_LABELS = [
   'NBA', 'WNBA', 'NFL', 'NCAAF', 'NCAAB', 'NHL', 'MLB', 'MLS',
   // Soccer — league-specific
   'UCL', 'UEL', 'UECL', 'EPL', 'LA LIGA', 'BUNDESLIGA', 'SERIE A',
-  'LIGUE 1', 'SOCCER', 'FIFA', 'COPPA', 'FA CUP',
+  'LIGUE 1', 'SOCCER', 'FIFA', 'FIFWC', 'WORLD CUP', 'COPPA', 'FA CUP',
   // Tennis
   'ATP', 'WTA', 'TENNIS',
   // Esports

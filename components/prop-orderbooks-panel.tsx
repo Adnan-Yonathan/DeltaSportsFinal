@@ -126,6 +126,7 @@ const SPORT_FILTER_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "americanfootball_ncaaf", label: "NCAAF" },
   { key: "icehockey_nhl", label: "NHL" },
   { key: "baseball_mlb", label: "MLB" },
+  { key: "soccer_fifwc", label: "World Cup" },
 ]
 
 const SOURCE_ORDER: SourceKey[] = ["kalshi", "polymarket", "novig", "prophetx"]
@@ -177,14 +178,6 @@ const ODDS_API_BOOK_ALIASES: Record<(typeof ODDS_API_BOOK_KEYS)[number], string[
   draftkings_pick6: ["draftkings_pick6", "draftkings-pick6", "dk_pick6", "pick6", "pick_6"],
   sleeper: ["sleeper"],
 }
-
-const PLAYER_PROP_ODDS_SUPPORTED_SPORTS = new Set([
-  "basketball_nba",
-  "basketball_ncaab",
-  "americanfootball_nfl",
-  "icehockey_nhl",
-  "baseball_mlb",
-])
 
 const normalizeBookToken = (value?: string | null) =>
   String(value ?? "")
@@ -1047,8 +1040,6 @@ export default function PropOrderbooksPanel({
   const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(
     initialData?.cache?.fetchedAt ?? null
   )
-  const [oddsFeedsBySport, setOddsFeedsBySport] = useState<Record<string, PlayerPropOddsResponse | null>>({})
-  const [oddsFeedLoadingBySport, setOddsFeedLoadingBySport] = useState<Record<string, boolean>>({})
   const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
   const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
 
@@ -1173,8 +1164,6 @@ export default function PropOrderbooksPanel({
     setLastUpdatedAt(initialData?.updatedAt ?? null)
     setCacheSource(initialData?.cache?.source ?? null)
     setCacheFetchedAt(initialData?.cache?.fetchedAt ?? null)
-    setOddsFeedsBySport({})
-    setOddsFeedLoadingBySport({})
     setPlayerHeadshotsByKey({})
     setHeadshotLoadingByKey({})
     setSearch("")
@@ -1302,58 +1291,6 @@ export default function PropOrderbooksPanel({
 
   const mergedItems = useMemo(() => mergeOrderbookItemsByProp(items), [items])
 
-  const sportsNeedingOddsFeed = useMemo(() => {
-    const candidates =
-      selectedSport === "all"
-        ? Array.from(new Set(mergedItems.map((item) => item.sportKey)))
-        : [selectedSport]
-    return candidates.filter((sportKey) => PLAYER_PROP_ODDS_SUPPORTED_SPORTS.has(sportKey))
-  }, [mergedItems, selectedSport])
-
-  useEffect(() => {
-    let cancelled = false
-    const pendingSports = sportsNeedingOddsFeed.filter(
-      (sportKey) =>
-        !hasOwn(oddsFeedsBySport as Record<string, unknown>, sportKey) &&
-        !oddsFeedLoadingBySport[sportKey]
-    )
-    if (!pendingSports.length) return
-
-    const run = async () => {
-      for (const sportKey of pendingSports) {
-        if (cancelled) return
-        setOddsFeedLoadingBySport((prev) => ({ ...prev, [sportKey]: true }))
-        try {
-          const res = await fetch(`/api/player-prop-odds?sport=${encodeURIComponent(sportKey)}`, {
-            cache: "no-store",
-          })
-          const payload = (await res.json().catch(() => ({}))) as PlayerPropOddsResponse
-          if (cancelled) return
-          if (!res.ok) {
-            setOddsFeedsBySport((prev) => ({ ...prev, [sportKey]: null }))
-            continue
-          }
-          setOddsFeedsBySport((prev) => ({ ...prev, [sportKey]: payload }))
-        } catch {
-          if (cancelled) return
-          setOddsFeedsBySport((prev) => ({ ...prev, [sportKey]: null }))
-        } finally {
-          if (cancelled) return
-          setOddsFeedLoadingBySport((prev) => {
-            const next = { ...prev }
-            delete next[sportKey]
-            return next
-          })
-        }
-      }
-    }
-
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [oddsFeedLoadingBySport, oddsFeedsBySport, sportsNeedingOddsFeed])
-
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     const resolvedRange = (() => {
@@ -1393,8 +1330,7 @@ export default function PropOrderbooksPanel({
           if (!haystack.includes(query)) return null
         }
         const baseDisplayLean = resolveDisplayLean(item)
-        const oddsFeed = oddsFeedsBySport[item.sportKey] ?? null
-        const oddsByBook = resolveMergedSharpBookOddsForItem(item, baseDisplayLean.side ?? null, oddsFeed)
+        const oddsByBook = resolveMergedSharpBookOddsForItem(item, baseDisplayLean.side ?? null, null)
         const displayLean =
           selectedBookFilter === "all"
             ? resolveDisplayLeanForFilter(item, selectedBookFilter)
@@ -1431,7 +1367,7 @@ export default function PropOrderbooksPanel({
         return a.item.marketTitle.localeCompare(b.item.marketTitle)
       })
       .map((entry) => entry.item)
-  }, [maxOdds, mergedItems, minOdds, oddsFeedsBySport, oddsPreset, search, selectedBookFilter, selectedSport, sideFilter])
+  }, [maxOdds, mergedItems, minOdds, oddsPreset, search, selectedBookFilter, selectedSport, sideFilter])
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -1448,8 +1384,7 @@ export default function PropOrderbooksPanel({
     [filteredItems, selectedItemId]
   )
 
-  const selectedOddsFeed: PlayerPropOddsResponse | null =
-    selectedItem ? oddsFeedsBySport[selectedItem.sportKey] ?? null : null
+  const selectedOddsFeed: PlayerPropOddsResponse | null = null
 
   const selectedDisplayLean = useMemo(() => {
     if (!selectedItem) return null
@@ -1690,11 +1625,10 @@ export default function PropOrderbooksPanel({
               {filteredItems.map((item) => {
                 const isSelected = selectedItem?.id === item.id
                 const baseDisplayLean = resolveDisplayLean(item)
-                const oddsFeed = oddsFeedsBySport[item.sportKey] ?? null
                 const oddsByBook = resolveMergedSharpBookOddsForItem(
                   item,
                   baseDisplayLean.side ?? null,
-                  oddsFeed
+                  null
                 )
                 const displayLean =
                   selectedBookFilter === "all"
@@ -1963,46 +1897,6 @@ export default function PropOrderbooksPanel({
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                    Current Odds (Snapshot)
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {selectedSharpBookOdds.map((book) => {
-                      const logo = SHARP_BOOK_LOGOS[book.key]
-                      return (
-                        <div
-                          key={`${selectedItem.id}:sharp-book:${book.key}`}
-                          className="flex items-center justify-between rounded-lg border border-white/10 bg-black/50 px-2.5 py-2"
-                        >
-                          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded border border-white/15 bg-black/40">
-                            {logo.src ? (
-                              <Image
-                                src={logo.src}
-                                alt={logo.label}
-                                width={26}
-                                height={26}
-                                className="h-full w-full object-contain"
-                                unoptimized
-                              />
-                            ) : (
-                              <span className="text-[9px] font-semibold text-white/65">
-                                {logo.label.slice(0, 2).toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm font-semibold text-lime-300">
-                            {formatAmericanOdds(book.odds)}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className="mt-2 text-[10px] text-white/35">
-                    Snapshot + live line-shop merge (auto-refresh).
-                  </p>
                 </div>
               </>
             )}

@@ -28,6 +28,7 @@ const SPORT_TABS = [
   { label: 'Ligue 1',    value: 'LIGUE 1' },
   { label: 'MLS',        value: 'MLS' },
   { label: 'Soccer',     value: 'SOCCER' },
+  { label: 'World Cup',  value: 'FIFWC' },
   // Tennis
   { label: 'ATP',        value: 'ATP' },
   { label: 'WTA',        value: 'WTA' },
@@ -123,73 +124,10 @@ function BookLogo({ sourceKey, label }: { sourceKey: OddsSourceKey; label: strin
   )
 }
 
-function buildShareOddsSnapshot(bet: InsiderBet) {
-  const quoteBySource = new Map(
-    (bet.odds_snapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
-  )
-  return INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
-    const quote = quoteBySource.get(sourceKey)
-    return {
-      sourceKey,
-      sourceLabel: quote?.sourceLabel ?? sourceKey,
-      oddsAmerican: quote?.oddsAmerican ?? null,
-    }
-  })
+function buildShareOddsSnapshot(_bet: InsiderBet) {
+  return []
 }
 
-function BestOddsByBook({ bet }: { bet: InsiderBet }) {
-  const quoteBySource = new Map(
-    (bet.odds_snapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
-  )
-
-  return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/45">
-          Current Odds (Snapshot)
-        </p>
-        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
-          Snapshot only - 10m
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        {INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
-          const quote = quoteBySource.get(sourceKey)
-          const label = quote?.sourceLabel ?? sourceKey
-          const isBest =
-            quote?.oddsAmerican != null &&
-            bet.best_odds_american != null &&
-            Math.round(quote.oddsAmerican) === Math.round(bet.best_odds_american)
-          return (
-            <div
-              key={`${bet.slug}:${sourceKey}`}
-              className={`flex items-center justify-between rounded-lg border px-2.5 py-2 ${
-                isBest
-                  ? 'border-emerald-400/35 bg-emerald-500/10'
-                  : 'border-white/10 bg-black/50'
-              }`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded border border-white/15 bg-black/40">
-                  <BookLogo sourceKey={sourceKey} label={label} />
-                </span>
-                <span className={`truncate text-[11px] ${isBest ? 'text-emerald-200' : 'text-white/70'}`}>
-                  {label}
-                </span>
-              </span>
-              <span className={`text-sm font-semibold ${quote?.oddsAmerican != null ? 'text-lime-300' : 'text-white/45'}`}>
-                {formatAmericanOnly(quote?.oddsAmerican ?? null)}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-      <p className="mt-2 text-[10px] text-white/35">
-        No live odds are fetched in this view. Data is served from cached snapshots.
-      </p>
-    </div>
-  )
-}
 // ── Score badge ───────────────────────────────────────────────────────────────
 
 function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' | 'lg' }) {
@@ -452,7 +390,6 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
             />
           </div>
 
-          <BestOddsByBook bet={bet} />
         </div>
       </div>
     </div>
@@ -577,8 +514,6 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
           </div>
         </div>
       </div>
-
-      <BestOddsByBook bet={bet} />
 
       {/* Actions */}
       <div className="mt-3 flex items-center gap-2">

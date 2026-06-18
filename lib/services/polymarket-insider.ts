@@ -228,14 +228,7 @@ export async function getInsiderFeed(opts: {
   const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   const nowIso = new Date().toISOString()
 
-  const selectFieldsExtended =
-    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, event_slug, ' +
-    'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
-    'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
-    'wallet_trade_count, current_price, current_american_odds, consensus_count, game_start_time, ' +
-    'odds_snapshot, odds_snapshot_at, best_odds_american, best_odds_book, odds_source_count, odds_is_stale'
-
-  const selectFieldsLegacy =
+  const selectFields =
     'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, event_slug, ' +
     'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
     'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
@@ -247,7 +240,7 @@ export async function getInsiderFeed(opts: {
 
   let query = (supabase as any)
     .from('insider_feed_cache')
-    .select(selectFieldsExtended)
+    .select(selectFields)
     .eq('cached_date', todayET)
     .gte('stake_usd', MIN_STAKE_USD)
     .gte('insider_score', minScore)
@@ -259,29 +252,7 @@ export async function getInsiderFeed(opts: {
     query = query.eq('sport_label', sport)
   }
 
-  let { data, error } = await query
-
-  if (
-    error &&
-    typeof error?.message === 'string' &&
-    (error.message.includes('odds_snapshot') || error.message.includes('best_odds_american'))
-  ) {
-    let fallbackQuery = (supabase as any)
-      .from('insider_feed_cache')
-      .select(selectFieldsLegacy)
-      .eq('cached_date', todayET)
-      .gte('stake_usd', MIN_STAKE_USD)
-      .gte('insider_score', minScore)
-      .gt('game_start_time', nowIso)
-      .order('insider_score', { ascending: false })
-      .limit(candidateLimit)
-    if (sport && sport !== 'ALL') {
-      fallbackQuery = fallbackQuery.eq('sport_label', sport)
-    }
-    const fallback = await fallbackQuery
-    data = fallback.data
-    error = fallback.error
-  }
+  const { data, error } = await query
 
   if (error) {
     console.error('[INSIDER] cache query failed', error)
@@ -318,12 +289,12 @@ export async function getInsiderFeed(opts: {
     current_price:           row.current_price           ?? null,
     current_american_odds:   row.current_american_odds   ?? null,
     consensus_count:         row.consensus_count         ?? 1,
-    odds_snapshot:           Array.isArray(row.odds_snapshot) ? row.odds_snapshot : [],
-    odds_snapshot_at:        row.odds_snapshot_at        ?? null,
-    best_odds_american:      row.best_odds_american      ?? null,
-    best_odds_book:          row.best_odds_book          ?? null,
-    odds_source_count:       row.odds_source_count       ?? 0,
-    odds_is_stale:           Boolean(row.odds_is_stale),
+    odds_snapshot:           [],
+    odds_snapshot_at:        null,
+    best_odds_american:      null,
+    best_odds_book:          null,
+    odds_source_count:       0,
+    odds_is_stale:           false,
   }))
 
   return deduplicateConflicts(mapped)

@@ -10,10 +10,7 @@ import {
   DEFAULT_PROP_ORDERBOOKS_DEPTH,
   DEFAULT_PROP_ORDERBOOKS_MIN_SHARP_NOTIONAL,
   filterPropOrderbooksItemsByDateWindow,
-  PERSISTED_PROP_ORDERBOOKS_LIMIT,
   type PropOrderbooksDateWindow,
-  persistPropOrderbooksSnapshot,
-  readPersistedPropOrderbooksSnapshot,
 } from '@/lib/services/prop-orderbooks-snapshot'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +23,7 @@ const SUPPORTED_SPORTS = new Set([
   'basketball_nba',
   'americanfootball_nfl',
   'baseball_mlb',
+  'soccer_fifwc',
   'icehockey_nhl',
   'basketball_ncaab',
   'americanfootball_ncaaf',
@@ -63,80 +61,15 @@ export async function GET(req: NextRequest) {
     const dateWindow: PropOrderbooksDateWindow =
       dateWindowParam === 'today' ? 'today' : 'upcoming'
     const todayKey = getUsMarketDayKey()
-    const canUsePersistentCache =
-      normalizedDepth === DEFAULT_PROP_ORDERBOOKS_DEPTH &&
-      normalizedMinSharpNotional === DEFAULT_PROP_ORDERBOOKS_MIN_SHARP_NOTIONAL
-
-    if (canUsePersistentCache && !forceRefresh && mode === 'fast') {
-      const persisted = await readPersistedPropOrderbooksSnapshot({
-        sport,
-        depth: normalizedDepth,
-        minSharpNotional: normalizedMinSharpNotional,
-        limit: normalizedLimit,
-        dateWindow,
-        todayKey,
-      })
-      const canServePersistedImmediately =
-        Boolean(persisted) &&
-        (sport === 'all' || persisted?.source === 'persistent')
-      if (persisted && canServePersistedImmediately) {
-        const diagnostics = resolveSnapshotDiagnostics(persisted.items)
-        return NextResponse.json(
-          {
-            ok: true,
-            sport,
-            updatedAt: persisted.updatedAt,
-            count: persisted.items.length,
-            items: persisted.items,
-            sourceCounts: diagnostics.sourceCounts,
-            cache: {
-              forcedRefresh: false,
-              source: persisted.source,
-              fetchedAt: persisted.fetchedAt,
-              cacheAgeMs: persisted.cacheAgeMs,
-            },
-            diagnostics,
-          },
-          { headers: NO_STORE_HEADERS }
-        )
-      }
-    }
-
-    const computeLimit =
-      canUsePersistentCache && sport === 'all'
-        ? Math.max(normalizedLimit, PERSISTED_PROP_ORDERBOOKS_LIMIT)
-        : normalizedLimit
 
     const snapshot = await fetchPropOrderbooksSnapshot({
       sportKey: sport,
-      limit: computeLimit,
+      limit: normalizedLimit,
       depth: normalizedDepth,
       minSharpNotional: normalizedMinSharpNotional,
       mode,
     })
 
-    if (canUsePersistentCache && (mode === 'full' || forceRefresh)) {
-      await persistPropOrderbooksSnapshot({
-        sport,
-        depth: normalizedDepth,
-        minSharpNotional: normalizedMinSharpNotional,
-        updatedAt: snapshot.updatedAt,
-        items: snapshot.items,
-      })
-    }
-
-    const persistedFallback = await readPersistedPropOrderbooksSnapshot({
-      sport,
-      depth: normalizedDepth,
-      minSharpNotional: normalizedMinSharpNotional,
-      limit: normalizedLimit,
-      dateWindow,
-      todayKey,
-    })
-    const canUsePersistedResponse =
-      mode === 'fast' &&
-      Boolean(persistedFallback) &&
-      (sport === 'all' || persistedFallback?.source === 'persistent')
     const liveItems: PropOrderbookItem[] =
       (() => {
         const filteredByDate = filterPropOrderbooksItemsByDateWindow(
@@ -151,10 +84,7 @@ export async function GET(req: NextRequest) {
           .filter((item) => item.sportKey === sport)
           .slice(0, normalizedLimit)
       })()
-    const responseItems =
-      canUsePersistedResponse && persistedFallback
-        ? persistedFallback.items
-        : liveItems
+    const responseItems = liveItems
 
     const diagnostics = resolveSnapshotDiagnostics(responseItems)
 
@@ -168,25 +98,10 @@ export async function GET(req: NextRequest) {
         sourceCounts: diagnostics.sourceCounts,
         cache: {
           forcedRefresh: forceRefresh,
-          source: canUsePersistedResponse && persistedFallback
-            ? persistedFallback.source
-            : mode === 'fast'
-              ? canUsePersistentCache
-                ? 'live_computed_persisted_fast'
-                : 'live_computed_fast'
-              : canUsePersistentCache
-                ? 'live_computed_persisted_full'
-                : 'live_computed_full',
-          fetchedAt:
-            canUsePersistedResponse && persistedFallback
-              ? persistedFallback.fetchedAt
-              : null,
-          cacheAgeMs:
-            canUsePersistedResponse && persistedFallback
-              ? persistedFallback.cacheAgeMs
-              : null,
-          fallbackToPersistent:
-            Boolean(persistedFallback) && !canUsePersistedResponse,
+          source: mode === 'fast' ? 'live_computed_fast' : 'live_computed_full',
+          fetchedAt: null,
+          cacheAgeMs: null,
+          fallbackToPersistent: false,
         },
         diagnostics,
       },

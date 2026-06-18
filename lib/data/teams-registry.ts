@@ -7118,5 +7118,6 @@ export const TEAM_COUNTS: Record<CanonicalSportKey, number> = {
   americanfootball_nfl: TEAMS_REGISTRY.filter((t) => t.sport === 'americanfootball_nfl').length,
   americanfootball_ncaaf: TEAMS_REGISTRY.filter((t) => t.sport === 'americanfootball_ncaaf').length,
   baseball_mlb: TEAMS_REGISTRY.filter((t) => t.sport === 'baseball_mlb').length,
+  soccer_fifwc: TEAMS_REGISTRY.filter((t) => t.sport === 'soccer_fifwc').length,
   icehockey_nhl: TEAMS_REGISTRY.filter((t) => t.sport === 'icehockey_nhl').length,
 }

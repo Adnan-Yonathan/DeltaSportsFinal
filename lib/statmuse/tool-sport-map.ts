@@ -121,6 +121,7 @@ export const SPORT_TOOL_MAP: Record<CanonicalSportKey, readonly string[]> = {
     TOOL_NAMES.ATS_LEADERBOARD,
     TOOL_NAMES.WEB_SEARCH,
   ],
+  soccer_fifwc: [],
 } as const
 
 export const TOOL_SPORT_PARAM_MAP: Record<

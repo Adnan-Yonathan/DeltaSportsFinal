@@ -66,5 +66,6 @@ export const SPORT_DISPLAY: Record<CanonicalSportKey, { label: string; shortLabe
   americanfootball_nfl: { label: 'NFL', shortLabel: 'NFL' },
   americanfootball_ncaaf: { label: 'College Football', shortLabel: 'NCAAF' },
   baseball_mlb: { label: 'MLB', shortLabel: 'MLB' },
+  soccer_fifwc: { label: 'World Cup', shortLabel: 'FIFWC' },
   icehockey_nhl: { label: 'NHL', shortLabel: 'NHL' },
 }

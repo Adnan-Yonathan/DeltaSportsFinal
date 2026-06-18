@@ -2,7 +2,7 @@
 
 import { forwardRef } from 'react'
 import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
-import { INSIDER_ODDS_SOURCE_ORDER, type OddsSourceKey } from '@/lib/config/odds-sources'
+import type { OddsSourceKey } from '@/lib/config/odds-sources'
 import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 export interface ShareableInsiderBet {
@@ -105,17 +105,9 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
     const oddsLabel = formatOdds(bet.avgEntryPrice, bet.americanOdds)
     const roiLabel = formatPct(bet.walletRoiPct)
     const detectedLabel = formatTimestamp(bet.lastTradeTime)
-    const oddsBySource = new Map(
-      (bet.oddsSnapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
+    const orderedOddsSnapshot = (bet.oddsSnapshot ?? []).filter(
+      (quote) => quote.oddsAmerican != null
     )
-    const orderedOddsSnapshot = INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
-      const quote = oddsBySource.get(sourceKey)
-      return {
-        sourceKey,
-        sourceLabel: quote?.sourceLabel ?? sourceKey,
-        oddsAmerican: quote?.oddsAmerican ?? null,
-      }
-    })
 
     return (
       <ShareCaptureRoot>
@@ -327,7 +319,7 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
                 </div>
               </div>
 
-              {/* Current odds snapshot */}
+              {orderedOddsSnapshot.length > 0 ? (
               <div
                 style={{
                   marginTop: 14,
@@ -338,7 +330,7 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
                 }}
               >
                 <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)' }}>
-                  Current odds (snapshot)
+                  Current odds
                 </div>
                 <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
                   {orderedOddsSnapshot.map((quote) => {
@@ -387,6 +379,7 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
                   })}
                 </div>
               </div>
+              ) : null}
             </div>
           </ShareCardFrame>
         </div>

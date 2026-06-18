@@ -29,7 +29,7 @@ const SUPPORTED_SPORTS: CanonicalSportKey[] = [
 ]
 
 const SUPPORTED_SPORT_SET = new Set(SUPPORTED_SPORTS)
-const BLOCKED_SPORTS = new Set<CanonicalSportKey>(['baseball_mlb'])
+const BLOCKED_SPORTS = new Set<CanonicalSportKey>(['baseball_mlb', 'soccer_fifwc'])
 const LINE_TOLERANCE = 0.25
 
 const SPREAD_STD_DEV: Record<CanonicalSportKey, number> = {
@@ -39,6 +39,7 @@ const SPREAD_STD_DEV: Record<CanonicalSportKey, number> = {
   americanfootball_ncaaf: 14,
   icehockey_nhl: 1.6,
   baseball_mlb: 4,
+  soccer_fifwc: 1.4,
 }
 
 const TOTAL_STD_DEV: Record<CanonicalSportKey, number> = {
@@ -48,6 +49,7 @@ const TOTAL_STD_DEV: Record<CanonicalSportKey, number> = {
   americanfootball_ncaaf: 13,
   icehockey_nhl: 1.3,
   baseball_mlb: 3.5,
+  soccer_fifwc: 1.2,
 }
 
 const DEFAULT_PROP_CORRELATION = 0.04

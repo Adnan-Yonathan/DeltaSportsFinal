@@ -7,6 +7,11 @@ import { buildFinalPropOrderbookItems } from '@/lib/services/prop-orderbooks-sel
 import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { resolveOverUnderSide } from '@/lib/utils/props'
+import {
+  normalizePolymarketPropType,
+  resolvePolymarketEventDate,
+  resolvePolymarketSportsMarketTypes,
+} from '@/lib/services/polymarket-prop-mapping'
 import type { Bookmaker, OddsGame } from '@/lib/types/odds'
 
 const KALSHI_BASE = KALSHI_BASE_CANDIDATES[0] ?? 'https://api.elections.kalshi.com/trade-api/v2'
@@ -125,6 +130,10 @@ type PolymarketMarket = {
   clobTokenIds?: string
   sportsMarketType?: string
   line?: number
+  eventDate?: string
+  gameStartTime?: string
+  startTime?: string
+  endDate?: string
   acceptingOrders?: boolean
   bestAsk?: number
   bestBid?: number
@@ -330,6 +339,8 @@ const POLYMARKET_SERIES_TO_SPORT_KEY: Record<string, { sportKey: string; sportLa
   'ncaa-cfb': { sportKey: 'americanfootball_ncaaf', sportLabel: 'NCAAF' },
   mlb: { sportKey: 'baseball_mlb', sportLabel: 'MLB' },
   baseball: { sportKey: 'baseball_mlb', sportLabel: 'MLB' },
+  'soccer-fifwc': { sportKey: 'soccer_fifwc', sportLabel: 'World Cup' },
+  fifwc: { sportKey: 'soccer_fifwc', sportLabel: 'World Cup' },
   nhl: { sportKey: 'icehockey_nhl', sportLabel: 'NHL' },
   wnba: { sportKey: 'basketball_wnba', sportLabel: 'WNBA' },
 }
@@ -380,6 +391,14 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
     { key: 'pitcher_outs', patterns: ['outs recorded', 'outs', 'innings pitched'] },
     { key: 'hits_allowed', patterns: ['hits allowed'] },
     { key: 'earned_runs', patterns: ['earned runs', 'er'] },
+  ],
+  soccer_fifwc: [
+    { key: 'goals_plus_assists', patterns: ['goals plus assists', 'goals assists'] },
+    { key: 'shots_on_target', patterns: ['shots on target', 'sot'] },
+    { key: 'goalkeeper_saves', patterns: ['goalkeeper saves', 'saves'] },
+    { key: 'goals', patterns: ['goals', 'goal'] },
+    { key: 'assists', patterns: ['assists', 'assist'] },
+    { key: 'shots', patterns: ['shots', 'shot'] },
   ],
   icehockey_nhl: [
     { key: 'goals', patterns: ['goals', 'goal', 'to score'] },
@@ -507,6 +526,14 @@ const MARKET_KEY_TO_PROP_TYPE: Record<string, string> = {
   player_hits_runs_rbis: 'hits_runs_rbis',
   player_strikeouts: 'strikeouts',
   player_walks: 'walks',
+  baseball_player_strikeouts: 'strikeouts',
+  baseball_player_home_runs: 'home_runs',
+  soccer_player_goals: 'goals',
+  soccer_player_assists: 'assists',
+  soccer_player_shots: 'shots',
+  soccer_player_shots_on_target: 'shots_on_target',
+  soccer_player_goals_plus_assists: 'goals_plus_assists',
+  soccer_player_goalkeeper_saves: 'goalkeeper_saves',
 }
 
 const SUPPORTED_TEAM_SPORTS = new Set([
@@ -599,13 +626,17 @@ const resolvePropLine = (text: string, propType: string | null, rawText?: string
     const value = Number(overUnderMatch[1])
     return Number.isFinite(value) ? value : null
   }
-  const propPattern = propType.replace('_', ' ')
+  const propPattern = propType
+    .split('_plus_')
+    .map((part) => part.replace(/_/g, '\\s+'))
+    .join('(?:\\s*\\+\\s*|\\s+plus\\s+)')
   const beforeMatch = searchText.match(
-    new RegExp(`(\\d+(?:\\.\\d+)?)\\+?\\s+${propPattern}`)
+    new RegExp(`(\\d+(?:\\.\\d+)?)(\\+)?\\s+${propPattern}`)
   )
   if (beforeMatch) {
     const value = Number(beforeMatch[1])
-    return Number.isFinite(value) ? value : null
+    if (!Number.isFinite(value)) return null
+    return beforeMatch[2] ? value - 0.5 : value
   }
   const afterMatch = searchText.match(
     new RegExp(`${propPattern}[^\\d]{0,6}(\\d+(?:\\.\\d+)?)`)
@@ -618,7 +649,7 @@ const resolvePropLine = (text: string, propType: string | null, rawText?: string
 }
 
 const NAME_NOISE_PATTERN = new RegExp(
-  '\\b(over|under|rushing|passing|receiving|yards?|yds?|touchdowns?|tds?|receptions?|catches|attempts?|completions?|interceptions?|points?|rebounds?|assists?|blocks?|steals?|threes?|three|three-point|3pt|3-point|line|total|team|anytime|to|score|will)\\b',
+  '\\b(over|under|rushing|passing|receiving|yards?|yds?|touchdowns?|tds?|receptions?|catches|attempts?|completions?|interceptions?|points?|rebounds?|assists?|blocks?|steals?|threes?|three|three-point|3pt|3-point|strikeouts?|home|runs?|goals?|shots?|target|saves?|goalkeeper|plus|line|total|team|anytime|to|score|will)\\b',
   'gi'
 )
 
@@ -877,19 +908,6 @@ const parseJsonArray = <T,>(value?: string): T[] => {
   }
 }
 
-const resolvePolymarketEventDate = (market: PolymarketMarket) => {
-  const event = market.events?.[0]
-  const raw =
-    event?.eventDate ||
-    event?.gameStartTime ||
-    event?.startTime ||
-    event?.endDate ||
-    null
-  if (!raw) return null
-  const match = raw.match(/^\d{4}-\d{2}-\d{2}/)
-  return match ? match[0] : null
-}
-
 const resolvePolymarketSport = (market: PolymarketMarket) => {
   const event = market.events?.[0]
   const seriesSlug = event?.seriesSlug || event?.series?.[0]?.slug || null
@@ -983,18 +1001,6 @@ const resolveBestPolymarketSeries = (
   return withYear[0]?.entry ?? candidates[0]
 }
 
-const resolvePolymarketSportsMarketTypes = (sportKey: string | 'all') => {
-  if (sportKey === 'all') {
-    return ['points', 'assists', 'rebounds']
-  }
-
-  if (sportKey === 'basketball_nba' || sportKey === 'basketball_ncaab') {
-    return ['points', 'assists', 'rebounds']
-  }
-
-  return []
-}
-
 const fetchPolymarketSeriesDetail = async (id: string) => {
   const res = await fetch(`${POLYMARKET_BASE}/series/${id}`, { cache: 'no-store' })
   if (!res.ok) return null
@@ -1029,6 +1035,8 @@ const isPlayerPropQuestion = (question: string) => {
 
 const resolveSportMetaFromSeriesSlug = (seriesSlug: string | null) => {
   if (!seriesSlug) return null
+  const exact = POLYMARKET_SERIES_TO_SPORT_KEY[seriesSlug]
+  if (exact) return exact
   const base = seriesSlug.split('-')[0]
   return POLYMARKET_SERIES_TO_SPORT_KEY[base] ?? null
 }
@@ -1919,7 +1927,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         const normalizedText = normalizeText(rawText)
         const matchup = resolvePolymarketMatchup(market)
         const propType =
-          market.sportsMarketType || resolvePropType(normalizedText, sportMeta.sportKey)
+          normalizePolymarketPropType(market.sportsMarketType) ??
+          resolvePropType(normalizedText, sportMeta.sportKey)
         if (!propType) return null
 
         const outcomes = parseJsonArray<string>(market.outcomes)
@@ -2946,6 +2955,9 @@ export const fetchPropLiquiditySignals = async (opts?: {
   polymarketUrl.searchParams.set('active', 'true')
   polymarketUrl.searchParams.set('closed', 'false')
   polymarketUrl.searchParams.set('limit', String(MAX_POLYMARKET_MARKETS))
+  for (const marketType of resolvePolymarketSportsMarketTypes(sportFilter)) {
+    polymarketUrl.searchParams.append('sports_market_types', marketType)
+  }
 
   const res = await fetch(polymarketUrl.toString(), { cache: 'no-store' })
   const polymarketData = res.ok ? ((await res.json()) as PolymarketMarket[]) : []
@@ -2962,7 +2974,9 @@ export const fetchPropLiquiditySignals = async (opts?: {
     if (!question) continue
     const rawText = question.trim()
     const normalizedText = normalizeText(rawText)
-    const propType = resolvePropType(normalizedText, sportMeta.sportKey)
+    const propType =
+      normalizePolymarketPropType(market.sportsMarketType) ??
+      resolvePropType(normalizedText, sportMeta.sportKey)
     if (!propType) continue
 
     const outcomes = parseJsonArray<string>(market.outcomes)
@@ -3003,7 +3017,10 @@ export const fetchPropLiquiditySignals = async (opts?: {
       if (!propSide) continue
 
       const playerName = extractPlayerNameFromText(rawText)
-      const propLine = resolvePropLine(normalizedText, propType, rawText)
+      const propLine =
+        typeof market.line === 'number' && Number.isFinite(market.line)
+          ? market.line
+          : resolvePropLine(normalizedText, propType, rawText)
       if (!playerName || propLine == null) continue
 
       const priceCents = selectedOrder.priceCents

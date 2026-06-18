@@ -254,63 +254,6 @@ const ShareableSharpPropsToolCard = forwardRef<
                 ))}
               </div>
             </div>
-
-            <div
-              style={{
-                marginTop: 14,
-                borderRadius: 16,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(0,0,0,0.4)',
-                padding: '12px 12px',
-              }}
-            >
-                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)' }}>
-                Current odds (snapshot)
-              </div>
-              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-                {payload.sharpBookOdds.map((book) => {
-                  const logo = SHARP_BOOK_LOGOS[book.key]
-                  return (
-                    <div
-                      key={`${payload.id}-${book.key}`}
-                      style={{
-                        borderRadius: 10,
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(2, 8, 20, 0.88)',
-                        padding: '8px 8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 29,
-                          height: 29,
-                          borderRadius: 7,
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          background: 'rgba(0,0,0,0.58)',
-                          overflow: 'hidden',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        {logo.src ? (
-                          <img src={logo.src} alt={logo.label} style={{ width: 22, height: 22, objectFit: 'contain' }} />
-                        ) : (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.72)' }}>
-                            {logo.label.slice(0, 2).toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#86efac' }}>{book.oddsLabel}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
           </div>
         </ShareCardFrame>
       </div>

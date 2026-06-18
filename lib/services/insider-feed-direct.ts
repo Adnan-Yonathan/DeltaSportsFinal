@@ -1,11 +1,13 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { computeInsiderScore, MIN_STAKE_USD } from './polymarket-insider'
-import { buildInsiderOddsSnapshots } from './insider-odds-snapshot'
 import {
   isNflDraftPolymarketMarket,
-  resolveNflDraftSportKeyFromPolymarketEvent,
 } from './polymarket-draft'
+import {
+  resolveInsiderSportKeyFromEvent,
+  resolveInsiderTradeSportKey,
+} from './insider-sport-detection'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -69,7 +71,7 @@ const SPORT_PREFIXES = [
   'nhl-', 'mlb-', 'baseball-', 'mls-',
   // Soccer / football — league-specific prefixes
   'ucl-', 'uel-', 'uecl-', 'epl-', 'laliga-', 'bundesliga-', 'seriea-',
-  'ligue1-', 'soccer-', 'fifa-', 'coppa-', 'facup-',
+  'ligue1-', 'soccer-fifwc-', 'fifwc-', 'soccer-', 'fifa-', 'coppa-', 'facup-',
   // Tennis
   'atp-', 'wta-', 'tennis-',
   // Esports — game-specific prefixes
@@ -94,7 +96,7 @@ const SPORT_LABEL_MAP: Record<string, string> = {
   // Soccer
   ucl: 'UCL', uel: 'UEL', uecl: 'UECL', epl: 'EPL', laliga: 'LA LIGA',
   bundesliga: 'BUNDESLIGA', seriea: 'SERIE A', ligue1: 'LIGUE 1',
-  soccer: 'SOCCER', fifa: 'FIFA', coppa: 'COPPA', facup: 'FA CUP',
+  soccer: 'SOCCER', 'soccer-fifwc': 'FIFWC', fifwc: 'FIFWC', fifa: 'FIFA', coppa: 'COPPA', facup: 'FA CUP',
   // Tennis
   atp: 'ATP', wta: 'WTA', tennis: 'TENNIS',
   // Esports
@@ -154,7 +156,6 @@ const parseNum = (v: unknown): number | null => {
 const normalizeSlug = (value?: string | null): string =>
   String(value ?? '').trim().toLowerCase()
 
-const MLB_TITLE_HINT = /\b(mlb|major league baseball|baseball)\b/i
 const eventSportKeyCache = new Map<string, string | null>()
 
 const sportKeyFromSlug = (slug: string): string | null => {
@@ -175,21 +176,7 @@ const resolveDraftSportKeyFromText = (...values: Array<string | null | undefined
 }
 
 export const resolveSportKeyFromEvent = (event: GammaEventEntry): string | null => {
-  const directSeriesSlug = normalizeSlug(
-    String(event.seriesSlug ?? event.series?.[0]?.slug ?? '')
-  )
-  if (directSeriesSlug) {
-    const directKey = sportKeyFromSlug(`${directSeriesSlug}-`)
-    if (directKey) return directKey
-    if (directSeriesSlug === 'mlb' || directSeriesSlug.includes('baseball')) return 'mlb'
-  }
-
-  const eventSeriesTitle = String(event.series?.map((entry) => entry?.title ?? '').join(' ') ?? '')
-  const eventTitle = String(event.title ?? '')
-  const draftKey = resolveNflDraftSportKeyFromPolymarketEvent(event)
-  if (draftKey) return draftKey
-  if (MLB_TITLE_HINT.test(`${eventSeriesTitle} ${eventTitle}`)) return 'mlb'
-  return null
+  return resolveInsiderSportKeyFromEvent(event)
 }
 
 async function fetchEventSportKey(eventSlug: string): Promise<string | null> {
@@ -239,19 +226,8 @@ async function buildTradeSportLabelOverrides(
   return overrides
 }
 
-const resolveTradeSportKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>): string | null => {
-  const slugKey = sportKeyFromSlug(normalizeSlug(trade.slug))
-  if (slugKey) return slugKey
-
-  const eventSlugKey = sportKeyFromSlug(normalizeSlug(trade.eventSlug))
-  if (eventSlugKey) return eventSlugKey
-
-  const draftKey = resolveDraftSportKeyFromText(trade.slug, trade.eventSlug, trade.title)
-  if (draftKey) return draftKey
-
-  // MLB markets can arrive with team-name slugs that do not include an `mlb-` prefix.
-  if (MLB_TITLE_HINT.test(String(trade.title ?? ''))) return 'mlb'
-  return null
+export const resolveTradeSportKey = (trade: Pick<TradeEntry, 'slug' | 'eventSlug' | 'title'>): string | null => {
+  return resolveInsiderTradeSportKey(trade)
 }
 
 const sportLabelForTrade = (
@@ -510,7 +486,7 @@ export type InsiderFeedRefreshResult = {
 }
 
 // Target sports for holder-based wallet discovery
-const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-', 'mlb-', 'baseball-', 'nfl-']
+const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-', 'mlb-', 'baseball-', 'nfl-', 'fifwc-']
 const HOLDER_DISCOVERY_MARKETS_PER_SPORT = 20
 const HOLDER_DISCOVERY_CONCURRENCY = 10
 const HOLDER_DISCOVERY_MAX_NEW_WALLETS = 150
@@ -1173,25 +1149,6 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
 
   const runTs  = new Date().toISOString()
   const scored: Record<string, unknown>[] = []
-  const oddsSnapshotMap = await buildInsiderOddsSnapshots(
-    pregamePositions.map((position) => {
-      const slugPrices = currentPrices.get(position.slug)
-      const currentPrice = slugPrices?.get(position.outcome) ?? null
-      const currentAmericanOdds =
-        currentPrice != null ? probabilityToAmericanOdds(currentPrice) : null
-      return {
-        slug: position.slug,
-        title: position.title,
-        outcome: position.outcome,
-        sportLabel: position.sportLabel,
-        currentAmericanOdds:
-          currentAmericanOdds != null && Number.isFinite(currentAmericanOdds)
-            ? currentAmericanOdds
-            : null,
-      }
-    })
-  )
-
   for (const pos of pregamePositions) {
     const meta = walletMetaMap.get(pos.wallet)
     if (!meta) continue
@@ -1217,7 +1174,6 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     const slugPrices = currentPrices.get(pos.slug)
     const curPrice = slugPrices?.get(pos.outcome) ?? null
     const curAmericanOdds = curPrice !== null ? probabilityToAmericanOdds(curPrice) : null
-    const oddsSnapshot = oddsSnapshotMap.get(`${pos.slug}::${pos.outcome}`)
     const gameStartTime = marketStartTimes.get(pos.slug) ?? null
 
     scored.push({
@@ -1242,11 +1198,11 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
       wallet_roi_pct:          Math.round(meta.roi * 100 * 10) / 10,
       wallet_trade_count:      buyTradeCount,
       consensus_count:         consensus,
-      odds_snapshot:           oddsSnapshot?.quotes ?? [],
-      odds_snapshot_at:        oddsSnapshot?.snapshotAt ?? null,
-      best_odds_american:      oddsSnapshot?.bestOddsAmerican ?? null,
-      best_odds_book:          oddsSnapshot?.bestOddsBook ?? null,
-      odds_source_count:       oddsSnapshot?.sourceCount ?? 0,
+      odds_snapshot:           [],
+      odds_snapshot_at:        null,
+      best_odds_american:      null,
+      best_odds_book:          null,
+      odds_source_count:       0,
       odds_is_stale:           false,
       game_start_time:         gameStartTime,
       refreshed_at:            runTs,
@@ -1315,7 +1271,6 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
   }
 
   if (scored.length > 0) {
-    // Upsert all rows so cached odds snapshots refresh every cycle.
     for (let i = 0; i < scored.length; i += 500) {
       const chunk = scored.slice(i, i + 500)
       const { error } = await (supabase as any)
@@ -1323,7 +1278,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
         .upsert(chunk, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: false })
       if (error) console.error(`[InsiderFeed] Cache upsert chunk ${i} failed:`, error)
     }
-    console.log(`[InsiderFeed] Upserted ${scored.length} bets with odds snapshots`)
+    console.log(`[InsiderFeed] Upserted ${scored.length} bets`)
   }
 
   // Count how many are now in cache for today

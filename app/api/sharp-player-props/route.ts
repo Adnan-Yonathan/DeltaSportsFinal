@@ -8,6 +8,7 @@ const SUPPORTED_SPORTS = new Set([
   "basketball_nba",
   "americanfootball_nfl",
   "baseball_mlb",
+  "soccer_fifwc",
   "icehockey_nhl",
   "basketball_ncaab",
   "americanfootball_ncaaf",

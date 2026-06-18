@@ -5,6 +5,7 @@ export type CanonicalSportKey =
   | 'americanfootball_ncaaf'
   | 'baseball_mlb'
   | 'icehockey_nhl'
+  | 'soccer_fifwc'
 
 const SPORT_ALIASES: Record<string, CanonicalSportKey> = {
   basketball_nba: 'basketball_nba',
@@ -40,6 +41,13 @@ const SPORT_ALIASES: Record<string, CanonicalSportKey> = {
   nhl: 'icehockey_nhl',
   hockey: 'icehockey_nhl',
   'ice hockey': 'icehockey_nhl',
+
+  soccer_fifwc: 'soccer_fifwc',
+  fifwc: 'soccer_fifwc',
+  'soccer fifwc': 'soccer_fifwc',
+  'soccer world cup': 'soccer_fifwc',
+  'world cup': 'soccer_fifwc',
+  'fifa world cup': 'soccer_fifwc',
 }
 
 const normalizeSportInput = (value: string) =>
@@ -77,6 +85,9 @@ export const resolveSportKey = (
   }
   if (raw.includes('hockey')) {
     return 'icehockey_nhl'
+  }
+  if (raw.includes('fifwc') || raw.includes('world cup')) {
+    return 'soccer_fifwc'
   }
 
   return undefined

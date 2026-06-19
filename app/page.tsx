@@ -16,6 +16,7 @@ import {
 } from '@/lib/trial-flow'
 import type { TrialOnboardingProfile } from '@/lib/trial-flow'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
+import type { MembershipInfo, MembershipTier } from '@/lib/utils/membership'
 import WelcomeClient from './welcome/welcome-client'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,35 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://deltasports.app',
   },
+}
+
+const normalizeSubscriptionTier = (tier: string | null | undefined): MembershipTier | null => {
+  if (tier === 'sharp' || tier === 'syndicate') return tier
+  if (tier === 'pro') return 'sharp'
+  if (tier === 'unlimited') return 'syndicate'
+  return null
+}
+
+const applySubscriptionTierFallback = (
+  membership: MembershipInfo,
+  tier: string | null | undefined
+): MembershipInfo => {
+  const normalizedTier = normalizeSubscriptionTier(tier)
+  if (!normalizedTier) return membership
+
+  return {
+    ...membership,
+    tier: normalizedTier,
+    status: membership.status ?? 'active',
+    isActive: true,
+    isPayingCustomer: true,
+    hasSuccessfulPayment: true,
+    hasPaidAccess: true,
+    hasProjectionAccess: true,
+    hasResearchAccess: normalizedTier === 'syndicate',
+    hasInsiderAccess: normalizedTier === 'syndicate',
+    hasFullAccess: true,
+  }
 }
 
 export default async function Home() {
@@ -45,7 +75,21 @@ export default async function Home() {
           precheckout_onboarding_completed: true,
         }
       : user.user_metadata
-    const membership = getMembershipStatusFromMetadata(effectiveMetadata)
+    let membership = getMembershipStatusFromMetadata(effectiveMetadata)
+    const hasAuthoritativeStatus =
+      typeof effectiveMetadata?.membership_status === 'string' &&
+      effectiveMetadata.membership_status.length > 0
+
+    if (!membership.hasPaidAccess && !hasAuthoritativeStatus) {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single()
+
+      membership = applySubscriptionTierFallback(membership, profile?.subscription_tier)
+    }
+
     if (shouldStartPrecheckoutOnboarding(membership, effectiveMetadata)) {
       redirect('/trial-onboarding')
     }

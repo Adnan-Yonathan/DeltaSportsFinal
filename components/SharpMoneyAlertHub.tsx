@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Zap, Lock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -34,6 +35,17 @@ const ALERT_TTL_MS = 30000
 const MAX_ALERTS = 4
 const SEEN_STORAGE_KEY = 'sharp-money-alerts-seen'
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const ALERT_ENABLED_PREFIXES = [
+  '/market-projections',
+  '/sharp-props',
+  '/sharp-detector',
+  '/polymarket-insider',
+  '/live-scores',
+  '/player-prop-odds',
+  '/line-shopping',
+  '/parlay-predictor',
+  '/stats',
+]
 
 const parseEventTime = (value?: string | null) => {
   if (!value) return null
@@ -97,11 +109,15 @@ const persistSeenIds = (ids: Set<string>) => {
 }
 
 export default function SharpMoneyAlertHub() {
+  const pathname = usePathname() ?? ''
   const [alerts, setAlerts] = useState<SharpAlert[]>([])
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
+  const isEnabled = ALERT_ENABLED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  )
   const isSyndicate = membership?.tier === 'syndicate'
 
   useEffect(() => {
@@ -109,6 +125,11 @@ export default function SharpMoneyAlertHub() {
   }, [])
 
   useEffect(() => {
+    if (!isEnabled) {
+      setMembership(null)
+      return
+    }
+
     const supabase = createClient()
     const loadMembership = async () => {
       const { data } = await supabase.auth.getUser()
@@ -120,9 +141,15 @@ export default function SharpMoneyAlertHub() {
       setMembership(getMembershipStatus(user.user_metadata))
     }
     loadMembership()
-  }, [])
+  }, [isEnabled])
 
   useEffect(() => {
+    if (!isEnabled) {
+      setAlerts([])
+      hasInitializedRef.current = false
+      return
+    }
+
     let active = true
     const fetchTrades = async () => {
       try {
@@ -202,7 +229,7 @@ export default function SharpMoneyAlertHub() {
       active = false
       clearInterval(interval)
     }
-  }, [])
+  }, [isEnabled])
 
   const dismissAlert = (id: string) => {
     setAlerts((prev) => prev.filter((alert) => alert.id !== id))

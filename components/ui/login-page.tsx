@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useState } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
@@ -20,7 +20,7 @@ export const LoginPage = () => {
   const [oauthLoading, setOauthLoading] = useState(false)
   const [error, setError] = useState("")
   const inFlightRef = useRef(false)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
   const readRateLimitUntil = (key: string) => {

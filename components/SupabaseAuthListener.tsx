@@ -1,28 +1,63 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/lib/supabase/types"
 
 export function SupabaseAuthListener() {
   const router = useRouter()
-  const supabase = createClientComponentClient<Database>()
+  const supabase = useMemo(() => createClientComponentClient<Database>(), [])
+  const lastSyncedTokenRef = useRef<string | null>(null)
+  const lastCallbackKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!event || event === "INITIAL_SESSION") return
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!event) return
 
-      await fetch("/auth/callback", {
+      const accessToken = session?.access_token ?? null
+
+      if (event === "INITIAL_SESSION") {
+        lastSyncedTokenRef.current = accessToken
+        return
+      }
+
+      if (
+        event !== "SIGNED_IN" &&
+        event !== "TOKEN_REFRESHED" &&
+        event !== "SIGNED_OUT"
+      ) {
+        return
+      }
+
+      if (event !== "SIGNED_OUT" && accessToken === lastSyncedTokenRef.current) {
+        return
+      }
+
+      const callbackKey = `${event}:${accessToken ?? "signed-out"}`
+      if (callbackKey === lastCallbackKeyRef.current) {
+        return
+      }
+
+      lastCallbackKeyRef.current = callbackKey
+      lastSyncedTokenRef.current = accessToken
+
+      void fetch("/auth/callback", {
         method: "POST",
         headers: new Headers({ "Content-Type": "application/json" }),
         credentials: "same-origin",
         body: JSON.stringify({ event, session }),
       })
-
-      router.refresh()
+        .then(() => {
+          if (event !== "TOKEN_REFRESHED") {
+            router.refresh()
+          }
+        })
+        .catch(() => {
+          lastCallbackKeyRef.current = null
+        })
     })
 
     return () => {

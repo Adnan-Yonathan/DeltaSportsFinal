@@ -550,7 +550,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState("");
   const inFlightRef = useRef(false);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const readRateLimitUntil = (key: string) => {
     if (typeof window === "undefined") return 0;

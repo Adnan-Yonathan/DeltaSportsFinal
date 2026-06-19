@@ -9,17 +9,7 @@ import { shouldStartPrecheckoutOnboarding } from '@/lib/trial-flow'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  const supabase = createRouteHandlerClient<Database>({ cookies })
-  const { event, session } = await request.json()
-
-  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-    await supabase.auth.setSession(session)
-  }
-
-  if (event === 'SIGNED_OUT') {
-    await supabase.auth.signOut()
-  }
-
+  await request.json().catch(() => null)
   return NextResponse.json({ success: true })
 }
 
